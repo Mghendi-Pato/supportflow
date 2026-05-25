@@ -1,0 +1,448 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // No url here — Prisma 7 requires driver adapter for runtime (see prisma.service.ts)
+  // CLI migrations/generate use the url from prisma.config.ts
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  MEMBER
+}
+
+enum TenantMemberRole {
+  WORKSPACE_ADMIN
+  AGENT
+}
+
+enum TenantPlan {
+  FREE
+  PRO
+  AGENCY
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  FIXED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CommentType {
+  PUBLIC   // Visible to client
+  INTERNAL // Staff only — client never sees this
+}
+
+enum NotificationType {
+  TICKET_CREATED
+  TICKET_ASSIGNED
+  NEW_COMMENT
+  STATUS_CHANGED
+  TICKET_CLOSED
+  CLIENT_INVITED
+  BILLING_REQUEST
+  BILLING_APPROVAL_NEEDED
+  PAYMENT_ACCEPTED
+  PAYMENT_DECLINED
+}
+
+enum MessageDeliveryStatus {
+  SENT
+  DELIVERED
+  SEEN
+}
+
+enum InvitationRole {
+  WORKSPACE_ADMIN
+  AGENT
+  CLIENT
+}
+
+enum BillingRequestStatus {
+  AWAITING_APPROVAL  // Agent-created — needs admin sign-off before client sees it
+  PENDING            // Visible to client, awaiting their response
+  ACCEPTED
+  DECLINED
+}
+
+enum ActivityAction {
+  TICKET_CREATED
+  TICKET_CLOSED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENT_ADDED
+  INTERNAL_NOTE_ADDED
+  ATTACHMENT_ADDED
+  CLIENT_INVITED
+  TICKET_REOPENED
+}
+
+// ============================================================
+// USERS
+// ============================================================
+
+model User {
+  id              String       @id @default(uuid())
+  email           String       @unique
+  passwordHash    String       @map("password_hash")
+  firstName       String       @map("first_name")
+  lastName        String       @map("last_name")
+  avatarUrl       String?      @map("avatar_url")
+  platformRole    PlatformRole @default(MEMBER) @map("platform_role")
+  isActive          Boolean      @default(true) @map("is_active")
+  emailVerifiedAt   DateTime?    @map("email_verified_at")
+  lastLoginAt       DateTime?    @map("last_login_at")
+  refreshTokenHash  String?      @map("refresh_token_hash") // Hashed refresh token for rotation + revocation
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  tenantMemberships  TenantMember[]
+  ownedTenants       Tenant[]           @relation("TenantOwner")
+  clientRecord       Client?
+  assignedTickets    Ticket[]           @relation("AssignedAgent")
+  createdTickets     Ticket[]           @relation("TicketCreator")
+  comments           TicketComment[]
+  attachments        TicketAttachment[]
+  activityLogs       TicketActivityLog[]
+  notifications      Notification[]
+  sentInvitations    TenantInvitation[] @relation("InvitedBy")
+  billingRequests    BillingRequest[]   @relation("BillingRequester")
+  messageReceipts    MessageReceipt[]
+
+  @@index([email])
+  @@index([platformRole])
+  @@map("users")
+}
+
+// ============================================================
+// TENANTS
+// ============================================================
+
+model Tenant {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  plan      TenantPlan @default(FREE)
+  isActive  Boolean    @default(true) @map("is_active")
+  logoUrl   String?    @map("logo_url")
+  settings  Json       @default("{}")
+  ownerId   String     @map("owner_id")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+
+  owner           User                  @relation("TenantOwner", fields: [ownerId], references: [id])
+  members         TenantMember[]
+  clients         Client[]
+  tickets         Ticket[]
+  notifications   Notification[]
+  invitations     TenantInvitation[]
+  ticketSequence  TenantTicketSequence?
+  billingRequests BillingRequest[]
+
+  @@index([slug])
+  @@index([ownerId])
+  @@map("tenants")
+}
+
+model TenantMember {
+  id        String           @id @default(uuid())
+  tenantId  String           @map("tenant_id")
+  userId    String           @map("user_id")
+  role      TenantMemberRole
+  invitedBy String?          @map("invited_by")
+  invitedAt DateTime?        @map("invited_at")
+  joinedAt  DateTime?        @map("joined_at")
+  isActive  Boolean          @default(true) @map("is_active")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("tenant_members")
+}
+
+// ============================================================
+// CLIENTS
+// ============================================================
+
+model Client {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  userId      String?   @unique @map("user_id")
+  companyName String?   @map("company_name")
+  contactName String    @map("contact_name")
+  email       String
+  phone       String?
+  notes       String?   // Internal — never shown to client
+  isActive    Boolean   @default(true) @map("is_active")
+  invitedAt   DateTime? @map("invited_at")
+  onboardedAt DateTime? @map("onboarded_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
+  tickets         Ticket[]
+  billingRequests BillingRequest[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("clients")
+}
+
+// ============================================================
+// TICKET NUMBER SEQUENCING
+// ============================================================
+
+model TenantTicketSequence {
+  tenantId     String @id @map("tenant_id")
+  prefix       String @default("SUP")
+  currentValue Int    @default(0) @map("current_value")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_ticket_sequences")
+}
+
+// ============================================================
+// TICKETS
+// ============================================================
+
+model Ticket {
+  id              String         @id @default(uuid())
+  tenantId        String         @map("tenant_id")
+  ticketNumber    String         @map("ticket_number")
+  clientId        String         @map("client_id")
+  assignedTo      String?        @map("assigned_to")
+  title           String
+  description     String
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(MEDIUM)
+  createdByUserId String         @map("created_by_user_id")
+  createdByType   String         @map("created_by_type") // "client" | "agent"
+  isPaid          Boolean        @default(false) @map("is_paid")
+  assignedAt      DateTime?      @map("assigned_at")
+  closedAt        DateTime?      @map("closed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  client        Client              @relation(fields: [clientId], references: [id])
+  assignee      User?               @relation("AssignedAgent", fields: [assignedTo], references: [id])
+  creator       User                @relation("TicketCreator", fields: [createdByUserId], references: [id])
+  comments        TicketComment[]
+  attachments     TicketAttachment[]
+  activityLogs    TicketActivityLog[]
+  notifications   Notification[]
+  billingRequests BillingRequest[]
+
+  @@unique([tenantId, ticketNumber])
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+// ============================================================
+// TICKET COMMENTS
+// ============================================================
+
+model TicketComment {
+  id           String      @id @default(uuid())
+  tenantId     String      @map("tenant_id")
+  ticketId     String      @map("ticket_id")
+  authorUserId String      @map("author_user_id")
+  content      String
+  commentType  CommentType @default(PUBLIC) @map("comment_type")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  ticket      Ticket             @relation(fields: [ticketId], references: [id])
+  author      User               @relation(fields: [authorUserId], references: [id])
+  attachments TicketAttachment[]
+  receipts    MessageReceipt[]
+
+  @@index([ticketId])
+  @@index([tenantId])
+  @@map("ticket_comments")
+}
+
+// ============================================================
+// ATTACHMENTS
+// ============================================================
+
+model TicketAttachment {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  ticketId      String   @map("ticket_id")
+  commentId     String?  @map("comment_id")
+  uploadedBy    String   @map("uploaded_by")
+  fileName      String   @map("file_name")
+  fileUrl       String   @map("file_url")
+  publicId      String   @map("public_id")
+  fileSizeBytes Int      @map("file_size_bytes")
+  mimeType      String   @map("mime_type")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  ticket   Ticket         @relation(fields: [ticketId], references: [id])
+  comment  TicketComment? @relation(fields: [commentId], references: [id])
+  uploader User           @relation(fields: [uploadedBy], references: [id])
+
+  @@index([ticketId])
+  @@index([tenantId])
+  @@map("ticket_attachments")
+}
+
+// ============================================================
+// ACTIVITY LOGS
+// ============================================================
+
+model TicketActivityLog {
+  id          String         @id @default(uuid())
+  tenantId    String         @map("tenant_id")
+  ticketId    String         @map("ticket_id")
+  actorUserId String         @map("actor_user_id")
+  action      ActivityAction
+  fromValue   String?        @map("from_value")
+  toValue     String?        @map("to_value")
+  metadata    Json           @default("{}")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  actor  User   @relation(fields: [actorUserId], references: [id])
+
+  @@index([ticketId])
+  @@index([tenantId])
+  @@index([createdAt])
+  @@map("ticket_activity_logs")
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id              String           @id @default(uuid())
+  tenantId        String?          @map("tenant_id")
+  recipientUserId String           @map("recipient_user_id")
+  ticketId        String?          @map("ticket_id")
+  type            NotificationType
+  title           String
+  message         String
+  isRead          Boolean          @default(false) @map("is_read")
+  emailSent       Boolean          @default(false) @map("email_sent")
+  emailSentAt     DateTime?        @map("email_sent_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  tenant    Tenant? @relation(fields: [tenantId], references: [id])
+  recipient User    @relation(fields: [recipientUserId], references: [id])
+  ticket    Ticket? @relation(fields: [ticketId], references: [id])
+
+  @@index([recipientUserId])
+  @@index([tenantId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// INVITATIONS
+// ============================================================
+
+model TenantInvitation {
+  id          String         @id @default(uuid())
+  tenantId    String         @map("tenant_id")
+  email       String
+  role        InvitationRole
+  clientId    String?        @map("client_id")
+  invitedById String         @map("invited_by_id")
+  token       String         @unique
+  expiresAt   DateTime       @map("expires_at")
+  acceptedAt  DateTime?      @map("accepted_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  invitedBy User   @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@index([tenantId])
+  @@map("tenant_invitations")
+}
+
+// ============================================================
+// BILLING REQUESTS
+// ============================================================
+
+model BillingRequest {
+  id              String               @id @default(uuid())
+  tenantId        String               @map("tenant_id")
+  ticketId        String               @map("ticket_id")
+  clientId        String               @map("client_id")
+  requestedById   String               @map("requested_by_id")
+  amount          Decimal              @map("amount") @db.Decimal(10, 2)
+  currency        String               @default("KES")
+  description     String
+  status          BillingRequestStatus @default(PENDING)
+  acceptedAt      DateTime?            @map("accepted_at")
+  declinedAt      DateTime?            @map("declined_at")
+  declineReason   String?              @map("decline_reason")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  ticket      Ticket @relation(fields: [ticketId], references: [id])
+  client      Client @relation(fields: [clientId], references: [id])
+  requestedBy User   @relation("BillingRequester", fields: [requestedById], references: [id])
+
+  @@index([ticketId])
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([status])
+  @@map("billing_requests")
+}
+
+// ============================================================
+// MESSAGE RECEIPTS — per-user delivery/read tracking for chat
+// ============================================================
+
+model MessageReceipt {
+  id        String                @id @default(uuid())
+  commentId String                @map("comment_id")
+  userId    String                @map("user_id")
+  status    MessageDeliveryStatus @default(SENT)
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  comment TicketComment @relation(fields: [commentId], references: [id])
+  user    User          @relation(fields: [userId], references: [id])
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@map("message_receipts")
+}

@@ -1,0 +1,31 @@
+# Development override — runs only Postgres + Adminer
+# Backend and frontend run locally via npm run start:dev / npm run dev
+#
+# Usage: docker-compose -f docker-compose.dev.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: supportflow_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: supportflow_db
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+
+  # Adminer — lightweight DB UI at http://localhost:8080
+  adminer:
+    image: adminer
+    container_name: supportflow_adminer
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_dev_data:
