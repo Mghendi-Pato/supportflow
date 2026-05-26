@@ -8,19 +8,15 @@ config({ path: resolve(__dirname, '.env') });
 
 const databaseUrl = process.env.DATABASE_URL;
 
-if (!databaseUrl) {
-  throw new Error(
-    'DATABASE_URL is not set.\n' +
-    'Run: cp .env.example .env  — then fill in DATABASE_URL before running migrations.',
-  );
-}
-
+// DATABASE_URL is required at runtime (migrate/studio) but not for
+// `prisma generate` which only reads the schema file.
+// We fall back to a dummy URL so Docker builds succeed without secrets.
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
   },
   datasource: {
-    url: databaseUrl,
+    url: databaseUrl ?? 'postgresql://dummy:dummy@localhost:5432/dummy',
   },
 });
