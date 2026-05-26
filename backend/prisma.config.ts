@@ -14,5 +14,7 @@ export default defineConfig({
   migrations: {
     path: 'prisma/migrations',
   },
-  datasourceUrl: process.env.DATABASE_URL ?? 'postgresql://dummy:dummy@localhost:5432/dummy',
+  datasource: {
+    url: process.env.DATABASE_URL ?? 'postgresql://dummy:dummy@localhost:5432/dummy',
+  },
 });
