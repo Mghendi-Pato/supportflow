@@ -12,6 +12,8 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# Dummy DATABASE_URL so prisma generate can read the schema without a real DB
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 RUN npm run build
 
@@ -27,6 +29,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+# Remove prisma.config.js from dist — production reads DATABASE_URL from environment via schema.prisma
+RUN rm -f ./dist/prisma.config.js ./dist/prisma.config.js.map ./dist/prisma.config.d.ts
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma/schema.prisma ./prisma/schema.prisma
