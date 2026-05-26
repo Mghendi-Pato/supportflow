@@ -14,8 +14,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/supportflow/backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/supportflow/frontend
+  BACKEND_IMAGE: ghcr.io/mghendi-pato/supportflow/backend
+  FRONTEND_IMAGE: ghcr.io/mghendi-pato/supportflow/frontend
 
 jobs:
   # ── Job 1: Build and push Docker images ──────────────────────
@@ -81,7 +81,7 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           script: |
             export IMAGE_TAG=${{ github.sha }}
-            export GITHUB_REPOSITORY=${{ github.repository_owner }}/supportflow
+            export GITHUB_REPOSITORY=mghendi-pato/supportflow
             cd /opt/supportflow
             bash scripts/deploy.sh $IMAGE_TAG
 
