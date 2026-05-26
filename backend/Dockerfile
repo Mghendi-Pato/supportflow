@@ -29,6 +29,9 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+# Plain JS Prisma config for production — Prisma 7 CLI reads this for migrate deploy.
+# No TypeScript runtime needed. Local dev uses prisma.config.ts instead.
+COPY prisma.config.prod.js ./prisma.config.js
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma/schema.prisma ./prisma/schema.prisma
