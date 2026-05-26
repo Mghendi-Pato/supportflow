@@ -50,7 +50,7 @@ export class ClientsController {
   @Roles('WORKSPACE_ADMIN', 'AGENT')
   @ApiOperation({ summary: 'List all clients (paginated)' })
   findAll(@CurrentUser() user: JwtPayload, @Query() query: ListClientsDto) {
-    return this.clientsService.findAll(user.tenantId!, query);
+    return this.clientsService.findAll(user.tenantId ?? null, query);
   }
 
   /**
@@ -63,7 +63,7 @@ export class ClientsController {
   @ApiOperation({ summary: 'Get a client profile with ticket history' })
   @ApiResponse({ status: 404, description: 'Client not found' })
   findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.clientsService.findOne(user.tenantId!, id, user.role);
+    return this.clientsService.findOne(user.tenantId ?? null, id, user.role);
   }
 
   /**

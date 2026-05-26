@@ -8,9 +8,11 @@ import {
   BarChart3,
   Settings,
   HeadphonesIcon,
+  ShieldCheck,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@/hooks/useAuth';
+import { useSuperAdminTenant } from '@/contexts/SuperAdminTenantContext';
 
 const navItems = [
   { href: '/dashboard',  label: 'Dashboard', icon: LayoutDashboard },
@@ -23,7 +25,15 @@ const navItems = [
 export function DashboardSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { selectedWorkspace } = useSuperAdminTenant();
+
   const isAdmin = user?.role === 'WORKSPACE_ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  // Workspace display: SUPER_ADMIN sees selected workspace; others see their own tenant
+  const workspaceName = isSuperAdmin
+    ? selectedWorkspace?.name
+    : user?.tenant?.name;
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
@@ -36,10 +46,20 @@ export function DashboardSidebar() {
       </div>
 
       {/* Workspace name */}
-      {user?.tenant && (
+      {workspaceName && (
         <div className="px-6 py-3 border-b border-gray-100">
-          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Workspace</p>
-          <p className="text-sm font-semibold text-gray-800 truncate">{user.tenant.name}</p>
+          {isSuperAdmin && (
+            <div className="flex items-center gap-1 mb-1">
+              <ShieldCheck size={11} className="text-amber-500" />
+              <p className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">
+                Super Admin
+              </p>
+            </div>
+          )}
+          {!isSuperAdmin && (
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Workspace</p>
+          )}
+          <p className="text-sm font-semibold text-gray-800 truncate">{workspaceName}</p>
         </div>
       )}
 

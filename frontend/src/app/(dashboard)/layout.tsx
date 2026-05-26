@@ -1,25 +1,41 @@
 'use client';
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useSuperAdminTenant } from '@/contexts/SuperAdminTenantContext';
 import { DashboardSidebar } from '@/components/layout/DashboardSidebar';
 import { PageLoader } from '@/components/ui/Spinner';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const { selectedWorkspace } = useSuperAdminTenant();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (isLoading) return;
+
     if (!user) {
       router.replace('/login');
-    } else if (user.role === 'CLIENT') {
-      router.replace('/portal');
+      return;
     }
-  }, [user, isLoading, router]);
+
+    if (user.role === 'CLIENT') {
+      router.replace('/portal');
+      return;
+    }
+
+    // SUPER_ADMIN must select a workspace before accessing the dashboard
+    if (user.role === 'SUPER_ADMIN' && !selectedWorkspace) {
+      router.replace('/select-workspace');
+    }
+  }, [user, isLoading, selectedWorkspace, router, pathname]);
 
   if (isLoading) return <PageLoader />;
   if (!user || user.role === 'CLIENT') return null;
+
+  // Don't render dashboard shell while SUPER_ADMIN is being redirected to picker
+  if (user.role === 'SUPER_ADMIN' && !selectedWorkspace) return <PageLoader />;
 
   return (
     <div className="flex h-screen bg-gray-50">

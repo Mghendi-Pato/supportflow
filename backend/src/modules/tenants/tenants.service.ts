@@ -256,6 +256,25 @@ export class TenantsService {
   }
 
   // ============================================================
+  // LIST ALL WORKSPACES — SUPER_ADMIN only
+  // ============================================================
+  async listAllTenants() {
+    return this.prisma.tenant.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        logoUrl: true,
+        createdAt: true,
+        _count: {
+          select: { clients: true, tickets: true, members: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  // ============================================================
   // PRIVATE
   // ============================================================
   private async assertTenantExists(tenantId: string) {

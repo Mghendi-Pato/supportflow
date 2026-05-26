@@ -57,12 +57,12 @@ export class ClientsService {
   // ============================================================
   // LIST CLIENTS — paginated with optional search
   // ============================================================
-  async findAll(tenantId: string, query: ListClientsDto) {
+  async findAll(tenantId: string | null, query: ListClientsDto) {
     const { page = 1, limit = 20, search, isActive } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ClientWhereInput = {
-      tenantId,
+      ...this.tenantFilter(tenantId),
       deletedAt: null,
       ...(isActive !== undefined && { isActive }),
       ...(search && {
@@ -100,9 +100,9 @@ export class ClientsService {
   // ============================================================
   // GET SINGLE CLIENT — with ticket stats
   // ============================================================
-  async findOne(tenantId: string, clientId: string, requestingRole: string) {
+  async findOne(tenantId: string | null, clientId: string, requestingRole: string) {
     const client = await this.prisma.client.findFirst({
-      where: { id: clientId, tenantId, deletedAt: null },
+      where: { id: clientId, ...this.tenantFilter(tenantId), deletedAt: null },
       include: {
         user: {
           select: {
@@ -306,6 +306,10 @@ export class ClientsService {
   // ============================================================
   // PRIVATE
   // ============================================================
+  private tenantFilter(tenantId: string | null): { tenantId?: string } {
+    return tenantId ? { tenantId } : {};
+  }
+
   private async assertClientExists(tenantId: string, clientId: string) {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, tenantId, deletedAt: null },

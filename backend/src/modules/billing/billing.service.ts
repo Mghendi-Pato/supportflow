@@ -256,12 +256,12 @@ export class BillingService {
   // Clients only see PENDING / ACCEPTED / DECLINED (not AWAITING_APPROVAL).
   // Staff see everything.
   // ============================================================
-  async getForTicket(tenantId: string, ticketId: string, currentUser: JwtPayload) {
+  async getForTicket(tenantId: string | null, ticketId: string, currentUser: JwtPayload) {
     const isClient = currentUser.role === 'CLIENT';
 
     return this.prisma.billingRequest.findMany({
       where: {
-        tenantId,
+        ...(tenantId && { tenantId }),
         ticketId,
         ...(isClient && {
           status: { notIn: ['AWAITING_APPROVAL'] },

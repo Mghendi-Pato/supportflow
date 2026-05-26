@@ -23,7 +23,7 @@ export class AnalyticsController {
   @Roles('WORKSPACE_ADMIN', 'AGENT', 'CLIENT')
   @ApiOperation({ summary: 'Get dashboard analytics (role-scoped)' })
   getDashboard(@CurrentUser() user: JwtPayload) {
-    return this.analyticsService.getDashboard(user.tenantId!, user);
+    return this.analyticsService.getDashboard(user.tenantId ?? null, user);
   }
 
   /**
@@ -35,7 +35,7 @@ export class AnalyticsController {
   @ApiQuery({ name: 'days', required: false, example: 30 })
   @ApiOperation({ summary: 'Ticket trend over time (staff only)' })
   getTicketTrend(@CurrentUser() user: JwtPayload, @Query('days') days?: number) {
-    return this.analyticsService.getTicketTrend(user.tenantId!, user, days ? Number(days) : 30);
+    return this.analyticsService.getTicketTrend(user.tenantId ?? null, user, days ? Number(days) : 30);
   }
 
   /**
@@ -46,6 +46,6 @@ export class AnalyticsController {
   @Roles('WORKSPACE_ADMIN')
   @ApiOperation({ summary: 'Agent workload breakdown (admin only)' })
   getAgentWorkload(@CurrentUser() user: JwtPayload) {
-    return this.analyticsService.getAgentWorkload(user.tenantId!, user);
+    return this.analyticsService.getAgentWorkload(user.tenantId ?? null, user);
   }
 }

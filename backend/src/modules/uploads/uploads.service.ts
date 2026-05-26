@@ -182,14 +182,14 @@ export class UploadsService {
   // ============================================================
   // GET ATTACHMENTS FOR A TICKET
   // ============================================================
-  async getTicketAttachments(tenantId: string, ticketId: string) {
+  async getTicketAttachments(tenantId: string | null, ticketId: string) {
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, tenantId, deletedAt: null },
+      where: { id: ticketId, ...(tenantId && { tenantId }), deletedAt: null },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
     return this.prisma.ticketAttachment.findMany({
-      where: { ticketId, tenantId },
+      where: { ticketId, ...(tenantId && { tenantId }) },
       include: {
         uploader: { select: { id: true, firstName: true, lastName: true } },
       },

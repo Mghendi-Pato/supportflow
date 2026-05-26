@@ -10,12 +10,13 @@ export class AnalyticsService {
   // ============================================================
   // MAIN DASHBOARD — all 6 MVP metrics in one query
   // ============================================================
-  async getDashboard(tenantId: string, currentUser: JwtPayload) {
+  async getDashboard(tenantId: string | null, currentUser: JwtPayload) {
     let clientId: string | undefined;
     let agentId: string | undefined;
 
     if (currentUser.role === 'CLIENT') {
-      // Clients only see their own ticket data
+      // Clients only see their own ticket data — require a real tenantId
+      if (!tenantId) return this.emptyDashboard();
       const clientRecord = await this.prisma.client.findFirst({
         where: { userId: currentUser.sub, tenantId, deletedAt: null },
       });
@@ -26,8 +27,10 @@ export class AnalyticsService {
       agentId = currentUser.sub;
     }
 
+    // SUPER_ADMIN has no tenantId — omit the filter to get a platform-wide view.
+    // All other roles must have a valid tenantId at this point.
     const baseWhere = {
-      tenantId,
+      ...(tenantId  && { tenantId }),
       deletedAt: null,
       ...(clientId  && { clientId }),
       ...(agentId   && { assignedTo: agentId }),
@@ -94,7 +97,7 @@ export class AnalyticsService {
     const avgResolutionHours = this.computeAvgResolutionHours(resolutionData);
 
     // Enrich per-client data with names (admin + agents see their own clients)
-    const byClient = clientId ? [] : await this.enrichClientStats(tenantId, byClientRaw);
+    const byClient = clientId ? [] : await this.enrichClientStats(tenantId ?? null, byClientRaw);
 
     // Status breakdown array (for charts)
     const byStatus = [
@@ -124,7 +127,7 @@ export class AnalyticsService {
   // ============================================================
   // TICKET TREND — open vs closed per day (last 30 days)
   // ============================================================
-  async getTicketTrend(tenantId: string, currentUser: JwtPayload, days = 30) {
+  async getTicketTrend(tenantId: string | null, currentUser: JwtPayload, days = 30) {
     // Clients not allowed to see trends
     if (currentUser.role === 'CLIENT') throw new ForbiddenException('Access denied');
 
@@ -133,7 +136,7 @@ export class AnalyticsService {
 
     const tickets = await this.prisma.ticket.findMany({
       where: {
-        tenantId,
+        ...(tenantId && { tenantId }),
         deletedAt: null,
         createdAt: { gte: since },
         // Agents only see their own assigned tickets in the trend
@@ -166,14 +169,14 @@ export class AnalyticsService {
   // ============================================================
   // AGENT WORKLOAD — tickets per agent (admin only)
   // ============================================================
-  async getAgentWorkload(tenantId: string, currentUser: JwtPayload) {
+  async getAgentWorkload(tenantId: string | null, currentUser: JwtPayload) {
     if (!['WORKSPACE_ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)) {
       throw new ForbiddenException('Access denied');
     }
 
     const grouped = await this.prisma.ticket.groupBy({
       by: ['assignedTo', 'status'],
-      where: { tenantId, deletedAt: null, assignedTo: { not: null } },
+      where: { ...(tenantId && { tenantId }), deletedAt: null, assignedTo: { not: null } },
       _count: { id: true },
     });
 
@@ -221,13 +224,16 @@ export class AnalyticsService {
   }
 
   private async enrichClientStats(
-    tenantId: string,
+    tenantId: string | null,
     raw: { clientId: string; _count: { id: number } }[],
   ) {
     if (!raw.length) return [];
     const clientIds = raw.map((r) => r.clientId);
     const clients = await this.prisma.client.findMany({
-      where: { id: { in: clientIds }, tenantId },
+      where: {
+        id: { in: clientIds },
+        ...(tenantId && { tenantId }),
+      },
       select: { id: true, contactName: true, companyName: true },
     });
     const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));

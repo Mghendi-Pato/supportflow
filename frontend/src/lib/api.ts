@@ -7,12 +7,18 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach access token to every request
+// Attach access token + SUPER_ADMIN workspace override to every request
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // When SUPER_ADMIN has selected a workspace, scope all requests to that tenant
+    const tenantOverride = localStorage.getItem('superAdminTenantId');
+    if (tenantOverride) {
+      config.headers['X-Tenant-Override'] = tenantOverride;
     }
   }
   return config;

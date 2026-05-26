@@ -29,6 +29,17 @@ export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
   /**
+   * GET /workspace/all
+   * SUPER_ADMIN only — list every workspace on the platform for the workspace picker.
+   */
+  @Get('all')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'List all workspaces (super admin only)' })
+  listAllWorkspaces() {
+    return this.tenantsService.listAllTenants();
+  }
+
+  /**
    * GET /workspace
    * Returns the current user's workspace profile.
    */

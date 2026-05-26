@@ -155,7 +155,7 @@ export class TicketsService {
   // ============================================================
   // LIST TICKETS
   // ============================================================
-  async findAll(tenantId: string, currentUser: JwtPayload, query: ListTicketsDto) {
+  async findAll(tenantId: string | null, currentUser: JwtPayload, query: ListTicketsDto) {
     const { page = 1, limit = 20, status, statuses, priority, clientId, assignedTo, search, sortBy = 'createdAt', sortOrder = 'desc', from, to } = query;
     const skip = (page - 1) * limit;
 
@@ -168,7 +168,7 @@ export class TicketsService {
         : {};
 
     const where: Prisma.TicketWhereInput = {
-      tenantId,
+      ...this.tenantFilter(tenantId),
       deletedAt: null,
       ...statusFilter,
       ...(priority && { priority }),
@@ -190,7 +190,8 @@ export class TicketsService {
 
     // Role-based scoping
     if (currentUser.role === 'CLIENT') {
-      // Clients only see their own tickets
+      // Clients only see their own tickets — must have a real tenantId
+      if (!tenantId) return { data: [], total: 0, page, limit, totalPages: 0 };
       const clientRecord = await this.prisma.client.findFirst({
         where: { userId: currentUser.sub, tenantId },
       });
@@ -231,12 +232,12 @@ export class TicketsService {
   // ============================================================
   // GET SINGLE TICKET — with comments, attachments, activity log
   // ============================================================
-  async findOne(tenantId: string, currentUser: JwtPayload, ticketIdOrNumber: string) {
+  async findOne(tenantId: string | null, currentUser: JwtPayload, ticketIdOrNumber: string) {
     // Support both UUID and ticket number (SUP-1042)
     const isTicketNumber = ticketIdOrNumber.includes('-') && !ticketIdOrNumber.includes('-', 4);
     const where = isTicketNumber
-      ? { tenantId, ticketNumber: ticketIdOrNumber.toUpperCase(), deletedAt: null }
-      : { id: ticketIdOrNumber, tenantId, deletedAt: null };
+      ? { ...this.tenantFilter(tenantId), ticketNumber: ticketIdOrNumber.toUpperCase(), deletedAt: null }
+      : { id: ticketIdOrNumber, ...this.tenantFilter(tenantId), deletedAt: null };
 
     const ticket = await this.prisma.ticket.findFirst({
       where,
@@ -522,11 +523,11 @@ export class TicketsService {
   // ============================================================
   // ACTIVITY LOG
   // ============================================================
-  async getActivityLog(tenantId: string, currentUser: JwtPayload, ticketId: string) {
+  async getActivityLog(tenantId: string | null, currentUser: JwtPayload, ticketId: string) {
     await this.assertTicketAccess(tenantId, currentUser, ticketId);
 
     return this.prisma.ticketActivityLog.findMany({
-      where: { ticketId, tenantId },
+      where: { ticketId, ...this.tenantFilter(tenantId) },
       include: {
         actor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
       },
@@ -539,17 +540,17 @@ export class TicketsService {
   // ============================================================
 
   private async assertTicketAccess(
-    tenantId: string,
+    tenantId: string | null,
     currentUser: JwtPayload,
     ticketId: string,
     allowedRoles?: string[],
   ) {
-    if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
+    if (allowedRoles && !allowedRoles.includes(currentUser.role) && currentUser.role !== 'SUPER_ADMIN') {
       throw new ForbiddenException('You do not have permission to perform this action');
     }
 
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, tenantId, deletedAt: null },
+      where: { id: ticketId, ...this.tenantFilter(tenantId), deletedAt: null },
     });
 
     if (!ticket) throw new NotFoundException('Ticket not found');
@@ -562,9 +563,9 @@ export class TicketsService {
     return ticket;
   }
 
-  private async assertClientOwnsTicket(tenantId: string, userId: string, ticketClientId: string) {
+  private async assertClientOwnsTicket(tenantId: string | null, userId: string, ticketClientId: string) {
     const clientRecord = await this.prisma.client.findFirst({
-      where: { userId, tenantId, deletedAt: null },
+      where: { userId, ...this.tenantFilter(tenantId), deletedAt: null },
     });
     if (!clientRecord || clientRecord.id !== ticketClientId) {
       throw new ForbiddenException('You do not have access to this ticket');
@@ -599,5 +600,15 @@ export class TicketsService {
       select: { firstName: true, lastName: true },
     });
     return user ? `${user.firstName} ${user.lastName}` : null;
+  }
+
+  /**
+   * Returns `{ tenantId }` when tenantId is non-null, or `{}` when it is null.
+   * Spreading this into a Prisma `where` clause gives SUPER_ADMIN (who has no
+   * tenantId) a platform-wide view without passing `null` to Prisma, which
+   * rejects null for a non-nullable column.
+   */
+  private tenantFilter(tenantId: string | null): { tenantId?: string } {
+    return tenantId ? { tenantId } : {};
   }
 }

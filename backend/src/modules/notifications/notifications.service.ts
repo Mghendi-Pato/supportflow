@@ -411,9 +411,13 @@ export class NotificationsService {
     });
   }
 
-  async markAllAsRead(userId: string, tenantId: string) {
+  async markAllAsRead(userId: string, tenantId: string | null) {
     return this.prisma.notification.updateMany({
-      where: { recipientUserId: userId, tenantId, isRead: false },
+      where: {
+        recipientUserId: userId,
+        ...(tenantId && { tenantId }),
+        isRead: false,
+      },
       data: { isRead: true },
     });
   }

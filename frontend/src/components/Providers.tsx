@@ -1,6 +1,7 @@
 'use client';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { SuperAdminTenantProvider } from '@/contexts/SuperAdminTenantContext';
 import { useState, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -49,9 +50,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         dense
       >
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>{children}</AuthProvider>
-        </QueryClientProvider>
+        <SuperAdminTenantProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>{children}</AuthProvider>
+          </QueryClientProvider>
+        </SuperAdminTenantProvider>
       </SnackbarProvider>
     </ThemeProvider>
   );
@@ -68,9 +71,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         dense
       >
         <ApolloProvider client={apolloClient}>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>{children}</AuthProvider>
-          </QueryClientProvider>
+          <SuperAdminTenantProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>{children}</AuthProvider>
+            </QueryClientProvider>
+          </SuperAdminTenantProvider>
         </ApolloProvider>
       </SnackbarProvider>
     </ThemeProvider>

@@ -73,7 +73,7 @@ export class UploadsController {
     @CurrentUser() user: JwtPayload,
     @Param('ticketId') ticketId: string,
   ) {
-    return this.uploadsService.getTicketAttachments(user.tenantId!, ticketId);
+    return this.uploadsService.getTicketAttachments(user.tenantId ?? null, ticketId);
   }
 
   /**

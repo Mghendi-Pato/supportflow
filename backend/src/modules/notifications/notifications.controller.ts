@@ -31,7 +31,7 @@ export class NotificationsController {
   ) {
     return this.notificationsService.getUserNotifications(
       user.sub,
-      user.tenantId!,
+      user.tenantId ?? null,
       page,
       limit,
     );
@@ -48,6 +48,6 @@ export class NotificationsController {
   @Patch('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllAsRead(@CurrentUser() user: JwtPayload) {
-    return this.notificationsService.markAllAsRead(user.sub, user.tenantId!);
+    return this.notificationsService.markAllAsRead(user.sub, user.tenantId ?? null);
   }
 }

@@ -57,7 +57,7 @@ export class BillingController {
     @CurrentUser() user: JwtPayload,
     @Query('ticketId') ticketId: string,
   ) {
-    return this.billingService.getForTicket(user.tenantId!, ticketId, user);
+    return this.billingService.getForTicket(user.tenantId ?? null, ticketId, user);
   }
 
   /**

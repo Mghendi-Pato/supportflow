@@ -61,7 +61,7 @@ export class TicketsController {
   @Roles('WORKSPACE_ADMIN', 'AGENT', 'CLIENT')
   @ApiOperation({ summary: 'List tickets (role-filtered, paginated)' })
   findAll(@CurrentUser() user: JwtPayload, @Query() query: ListTicketsDto) {
-    return this.ticketsService.findAll(user.tenantId!, user, query);
+    return this.ticketsService.findAll(user.tenantId ?? null, user, query);
   }
 
   /**
@@ -74,7 +74,7 @@ export class TicketsController {
   @ApiOperation({ summary: 'Get a ticket by ID or ticket number (e.g. SUP-1042)' })
   @ApiParam({ name: 'id', description: 'Ticket UUID or ticket number (SUP-1042)' })
   findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.ticketsService.findOne(user.tenantId!, user, id);
+    return this.ticketsService.findOne(user.tenantId ?? null, user, id);
   }
 
   /**
