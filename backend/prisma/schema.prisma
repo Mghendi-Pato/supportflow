@@ -111,18 +111,19 @@ model User {
   updatedAt       DateTime     @updatedAt @map("updated_at")
   deletedAt       DateTime?    @map("deleted_at")
 
-  tenantMemberships  TenantMember[]
-  ownedTenants       Tenant[]           @relation("TenantOwner")
-  clientRecord       Client?
-  assignedTickets    Ticket[]           @relation("AssignedAgent")
-  createdTickets     Ticket[]           @relation("TicketCreator")
-  comments           TicketComment[]
-  attachments        TicketAttachment[]
-  activityLogs       TicketActivityLog[]
-  notifications      Notification[]
-  sentInvitations    TenantInvitation[] @relation("InvitedBy")
-  billingRequests    BillingRequest[]   @relation("BillingRequester")
-  messageReceipts    MessageReceipt[]
+  tenantMemberships       TenantMember[]
+  ownedTenants            Tenant[]              @relation("TenantOwner")
+  clientRecord            Client?
+  assignedTickets         Ticket[]              @relation("AssignedAgent")
+  createdTickets          Ticket[]              @relation("TicketCreator")
+  comments                TicketComment[]
+  attachments             TicketAttachment[]
+  activityLogs            TicketActivityLog[]
+  notifications           Notification[]
+  sentInvitations         TenantInvitation[]    @relation("InvitedBy")
+  billingRequests         BillingRequest[]      @relation("BillingRequester")
+  messageReceipts         MessageReceipt[]
+  notificationPreferences NotificationPreference[]
 
   @@index([email])
   @@index([platformRole])
@@ -445,4 +446,33 @@ model MessageReceipt {
   @@unique([commentId, userId])
   @@index([commentId])
   @@map("message_receipts")
+}
+
+// ============================================================
+// NOTIFICATION PREFERENCES — per-user, per-tenant email opt-ins
+// ============================================================
+
+model NotificationPreference {
+  id       String @id @default(uuid())
+  userId   String @map("user_id")
+  tenantId String @map("tenant_id")
+
+  // Email opt-in flags (all true by default)
+  emailNewTicket      Boolean @default(true)  @map("email_new_ticket")
+  emailStatusChanged  Boolean @default(true)  @map("email_status_changed")
+  emailAssigned       Boolean @default(true)  @map("email_assigned")
+  emailNewMessage     Boolean @default(true)  @map("email_new_message")
+  emailNewAttachment  Boolean @default(false) @map("email_new_attachment")
+  emailBillingRequest Boolean @default(true)  @map("email_billing_request")
+  emailPaymentUpdate  Boolean @default(true)  @map("email_payment_update")
+  emailTicketClosed   Boolean @default(true)  @map("email_ticket_closed")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@map("notification_preferences")
 }

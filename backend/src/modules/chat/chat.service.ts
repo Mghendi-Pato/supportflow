@@ -36,8 +36,9 @@ export class ChatService {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: {
         author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
-        receipts: {
-          select: { userId: true, status: true, updatedAt: true },
+        receipts: { select: { userId: true, status: true, updatedAt: true } },
+        attachments: {
+          select: { id: true, fileName: true, fileUrl: true, mimeType: true, fileSizeBytes: true },
         },
       },
     });
@@ -63,19 +64,41 @@ export class ChatService {
     const commentType =
       role === 'CLIENT' ? 'PUBLIC' : (input.commentType ?? 'PUBLIC');
 
+    // Validate: must have content OR attachments
+    const hasContent = input.content && input.content.trim().length > 0;
+    const hasAttachments = input.attachmentIds && input.attachmentIds.length > 0;
+    if (!hasContent && !hasAttachments) {
+      throw new Error('Message must have content or at least one attachment');
+    }
+
     const comment = await this.prisma.ticketComment.create({
       data: {
         tenantId: ticket.tenantId,
         ticketId: input.ticketId,
         authorUserId: userId,
-        content: input.content,
+        content: input.content?.trim() || '',
         commentType: commentType as any,
       },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
         receipts: { select: { userId: true, status: true, updatedAt: true } },
+        attachments: {
+          select: { id: true, fileName: true, fileUrl: true, mimeType: true, fileSizeBytes: true },
+        },
       },
     });
+
+    // Link uploaded attachments to this comment
+    if (hasAttachments) {
+      await this.prisma.ticketAttachment.updateMany({
+        where: {
+          id: { in: input.attachmentIds },
+          ticketId: input.ticketId,   // security: only attachments on this ticket
+          commentId: null,            // only unlinked attachments
+        },
+        data: { commentId: comment.id },
+      });
+    }
 
     // Create SENT receipt for the author (their own message)
     await this.upsertReceipt(comment.id, userId, 'SENT');
@@ -99,12 +122,15 @@ export class ChatService {
       });
     }
 
-    // Re-fetch with fresh receipts
+    // Re-fetch with fresh receipts + linked attachments
     const withReceipts = await this.prisma.ticketComment.findUnique({
       where: { id: comment.id },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
         receipts: { select: { userId: true, status: true, updatedAt: true } },
+        attachments: {
+          select: { id: true, fileName: true, fileUrl: true, mimeType: true, fileSizeBytes: true },
+        },
       },
     });
 
@@ -171,6 +197,13 @@ export class ChatService {
         userId: r.userId,
         status: r.status,
         updatedAt: r.updatedAt.toISOString(),
+      })),
+      attachments: (comment.attachments ?? []).map((a: any) => ({
+        id: a.id,
+        fileName: a.fileName,
+        fileUrl: a.fileUrl,
+        mimeType: a.mimeType,
+        fileSizeBytes: a.fileSizeBytes,
       })),
       createdAt: comment.createdAt.toISOString(),
       updatedAt: comment.updatedAt.toISOString(),

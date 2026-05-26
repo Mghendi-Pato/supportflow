@@ -1,4 +1,22 @@
-import { ObjectType, Field, ID } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
+
+@ObjectType()
+export class MessageAttachment {
+  @Field(() => ID)
+  id: string;
+
+  @Field()
+  fileName: string;
+
+  @Field()
+  fileUrl: string;
+
+  @Field()
+  mimeType: string;
+
+  @Field(() => Int)
+  fileSizeBytes: number;
+}
 
 @ObjectType()
 export class MessageAuthor {
@@ -46,6 +64,9 @@ export class ChatMessage {
 
   @Field(() => [MessageReceipt])
   receipts: MessageReceipt[];
+
+  @Field(() => [MessageAttachment])
+  attachments: MessageAttachment[];
 
   @Field()
   createdAt: string;

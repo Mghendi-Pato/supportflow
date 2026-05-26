@@ -80,6 +80,12 @@ export default function TicketDetailPage() {
   const [billingForm, setBillingForm]   = useState({ amount: '', currency: 'KES', description: '' });
   const [billingError, setBillingError] = useState('');
 
+  // Send Request active only when amount is a valid positive number and description is filled
+  const billingValid =
+    billingForm.description.trim().length > 0 &&
+    /^\d+(\.\d+)?$/.test(billingForm.amount.trim()) &&
+    parseFloat(billingForm.amount) > 0;
+
   const { data: ticket, isLoading } = useQuery<Ticket>(
     ['ticket', id],
     async () => { const res = await api.get(`/tickets/${id}`); return res.data.data; }
@@ -285,19 +291,15 @@ export default function TicketDetailPage() {
 
             {/* ── Real-time chat panel ── */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col" style={{ minHeight: '480px' }}>
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-800">Conversation</h2>
-                {isStaff && (
-                  <button
-                    onClick={() => setShowBilling(true)}
-                    className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-2.5 py-1 rounded-lg transition-colors font-medium"
-                  >
-                    <DollarSign size={13} /> Request Payment
-                  </button>
-                )}
               </div>
               <div className="flex-1 flex flex-col min-h-0">
-                <ChatPanel ticketId={id} isClient={false} />
+                <ChatPanel
+                  ticketId={id}
+                  isClient={false}
+                  onRequestPayment={isStaff ? () => setShowBilling(true) : undefined}
+                />
               </div>
             </div>
           </div>
@@ -430,7 +432,11 @@ export default function TicketDetailPage() {
           {billingError && <p className="text-sm text-red-600">{billingError}</p>}
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => { setShowBilling(false); setBillingError(''); }}>Cancel</Button>
-            <Button isLoading={createBillingRequest.isLoading} onClick={() => createBillingRequest.mutate()}>
+            <Button
+              isLoading={createBillingRequest.isLoading}
+              disabled={!billingValid || createBillingRequest.isLoading}
+              onClick={() => createBillingRequest.mutate()}
+            >
               <DollarSign size={14} /> Send Request
             </Button>
           </div>

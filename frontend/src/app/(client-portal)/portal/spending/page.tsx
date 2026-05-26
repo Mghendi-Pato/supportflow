@@ -36,27 +36,34 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default function SpendingPage() {
   const [from, setFrom] = useState(firstOfMonth());
-  const [to,   setTo]   = useState(today());
+  const [to, setTo] = useState(today());
   const [applied, setApplied] = useState({ from: firstOfMonth(), to: today() });
 
   const { data, isLoading } = useQuery<SpendingData>(
     ['spending', applied.from, applied.to],
     async () => {
-      const res = await api.get(`/billing-requests/spending?from=${applied.from}&to=${applied.to}T23:59:59`);
+      const res = await api.get(
+        `/billing-requests/spending?from=${applied.from}&to=${applied.to}T23:59:59`,
+      );
       return res.data.data;
-    }
+    },
   );
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/portal" className="text-gray-400 hover:text-gray-600 transition-colors">
+        <Link
+          href="/portal"
+          className="text-gray-400 hover:text-gray-600 transition-colors"
+        >
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Spending Summary</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track your support charges across any date range</p>
+          <h1 className="text-2xl font-bold text-gray-900">Billing Summary</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Track your support charges across any date range
+          </p>
         </div>
       </div>
 
@@ -64,23 +71,37 @@ export default function SpendingPage() {
       <Card>
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[140px]">
-            <Input label="From" type="date" value={from} onChange={e => setFrom(e.target.value)} />
+            <Input
+              label="From"
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
           </div>
           <div className="flex-1 min-w-[140px]">
-            <Input label="To" type="date" value={to} onChange={e => setTo(e.target.value)} />
+            <Input
+              label="To"
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
           </div>
           <Button onClick={() => setApplied({ from, to })}>Apply</Button>
         </div>
       </Card>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-16">
+          <Spinner size="lg" />
+        </div>
       ) : !data ? null : (
         <>
           {/* Totals */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {Object.entries(data.totals).length === 0 ? (
-              <div className="col-span-3 text-center text-sm text-gray-400 py-4">No charges in this period</div>
+              <div className="col-span-3 text-center text-sm text-gray-400 py-4">
+                No charges in this period
+              </div>
             ) : (
               Object.entries(data.totals).map(([currency, total]) => (
                 <Card key={currency}>
@@ -89,9 +110,15 @@ export default function SpendingPage() {
                       <TrendingUp size={18} className="text-green-600" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Total ({currency})</p>
+                      <p className="text-xs text-gray-500">
+                        Total ({currency})
+                      </p>
                       <p className="text-xl font-bold text-gray-900">
-                        {currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {currency}{' '}
+                        {total.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </p>
                     </div>
                   </div>
@@ -105,7 +132,9 @@ export default function SpendingPage() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Transactions</p>
-                  <p className="text-xl font-bold text-gray-900">{data.count}</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {data.count}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -119,13 +148,18 @@ export default function SpendingPage() {
               </div>
               <div className="divide-y divide-gray-50">
                 {data.requests.map((r) => (
-                  <div key={r.id} className="px-6 py-4 flex items-start justify-between gap-4">
+                  <div
+                    key={r.id}
+                    className="px-6 py-4 flex items-start justify-between gap-4"
+                  >
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <DollarSign size={14} className="text-green-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{r.description}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {r.description}
+                        </p>
                         <Link
                           href={`/portal/tickets/${r.ticket.id}`}
                           className="text-xs text-primary-600 hover:underline"
@@ -133,13 +167,18 @@ export default function SpendingPage() {
                           {r.ticket.ticketNumber} — {r.ticket.title}
                         </Link>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          By {r.requestedBy.firstName} {r.requestedBy.lastName} · Accepted {format(new Date(r.acceptedAt), 'MMM d, yyyy')}
+                          By {r.requestedBy.firstName} {r.requestedBy.lastName}{' '}
+                          · Accepted{' '}
+                          {format(new Date(r.acceptedAt), 'MMM d, yyyy')}
                         </p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-gray-900">
-                        {r.currency} {Number(r.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {r.currency}{' '}
+                        {Number(r.amount).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </p>
                     </div>
                   </div>

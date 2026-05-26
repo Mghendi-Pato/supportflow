@@ -22,8 +22,16 @@ export default function NewTicketPage() {
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState('');
 
+  // Real-time field validation
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [descTouched, setDescTouched] = useState(false);
+  const titleError = titleTouched && !form.title.trim() ? 'Title is required' : undefined;
+  const descError  = descTouched  && !form.description.trim() ? 'Please describe your issue' : undefined;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTitleTouched(true);
+    setDescTouched(true);
     if (!form.title.trim())       { setError('Title is required'); return; }
     if (!form.description.trim()) { setError('Please describe your issue'); return; }
 
@@ -59,6 +67,11 @@ export default function NewTicketPage() {
     }
   };
 
+  // Submit button active only when both required fields are filled
+  const canSubmit =
+    form.title.trim().length > 0 &&
+    form.description.trim().length > 0;
+
   // Derive a friendly progress label
   const progressLabel = uploadProgress
     ? uploadProgress.total === 1
@@ -89,7 +102,8 @@ export default function NewTicketPage() {
             placeholder="Briefly summarize your issue"
             value={form.title}
             onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
-            required
+            onBlur={() => setTitleTouched(true)}
+            error={titleError}
           />
 
           {/* Description */}
@@ -99,6 +113,8 @@ export default function NewTicketPage() {
             rows={6}
             value={form.description}
             onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+            onBlur={() => setDescTouched(true)}
+            error={descError}
           />
 
           {/* Priority */}
@@ -167,7 +183,7 @@ export default function NewTicketPage() {
             <Link href="/portal">
               <Button variant="ghost" type="button" disabled={isSubmitting}>Cancel</Button>
             </Link>
-            <Button type="submit" isLoading={isSubmitting} size="lg" disabled={isSubmitting}>
+            <Button type="submit" isLoading={isSubmitting} size="lg" disabled={!canSubmit || isSubmitting}>
               <Send size={16} />
               {isSubmitting ? (progressLabel ?? 'Submitting…') : 'Submit Ticket'}
             </Button>

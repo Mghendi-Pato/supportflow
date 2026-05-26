@@ -63,13 +63,21 @@ function makeCache() {
       Query: {
         fields: {
           messages: {
+            // Only ticketId determines the cache key — cursor/limit are pagination args
             keyArgs: ['ticketId'],
-            merge(existing, incoming) {
+            merge(existing, incoming, { args }) {
+              // Fresh / initial load (no cursor): always replace.
+              // This prevents the cache from doubling messages each time the
+              // component remounts and re-fires the query.
+              if (!args?.cursor) return incoming;
+
+              // "Load more" (cursor present): prepend the older page before
+              // whatever is already cached.
               return {
                 ...incoming,
                 items: [
-                  ...(existing?.items ?? []),
                   ...(incoming?.items ?? []),
+                  ...(existing?.items ?? []),
                 ],
               };
             },

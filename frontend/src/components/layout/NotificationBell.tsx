@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { formatDistanceToNow } from 'date-fns';
 import api from '@/lib/api';
@@ -22,6 +22,11 @@ export function NotificationBell() {
 
   const markAll = useMutation(
     () => api.patch('/notifications/read-all'),
+    { onSuccess: () => qc.invalidateQueries('notifications') }
+  );
+
+  const markOne = useMutation(
+    (id: string) => api.patch('/notifications/read', { notificationIds: [id] }),
     { onSuccess: () => qc.invalidateQueries('notifications') }
   );
 
@@ -70,12 +75,35 @@ export function NotificationBell() {
               notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`px-4 py-3 border-b border-gray-50 last:border-0 ${!n.isRead ? 'bg-primary-50' : ''}`}
+                  className={`group relative flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0 transition-colors ${
+                    !n.isRead ? 'bg-primary-50 hover:bg-primary-100/60' : 'hover:bg-gray-50'
+                  }`}
                 >
-                  <p className="text-sm text-gray-800 leading-snug">{n.message}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
-                  </p>
+                  {/* Unread dot */}
+                  <span
+                    className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full transition-opacity ${
+                      !n.isRead ? 'bg-primary-500 opacity-100' : 'opacity-0'
+                    }`}
+                  />
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800 leading-snug">{n.message}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                    </p>
+                  </div>
+
+                  {/* Mark-as-read button — only for unread; appears on row hover */}
+                  {!n.isRead && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); markOne.mutate(n.id); }}
+                      disabled={markOne.isLoading}
+                      title="Mark as read"
+                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 p-1 rounded-full text-gray-400 hover:text-primary-600 hover:bg-primary-100 disabled:opacity-40"
+                    >
+                      <Check size={13} />
+                    </button>
+                  )}
                 </div>
               ))
             )}

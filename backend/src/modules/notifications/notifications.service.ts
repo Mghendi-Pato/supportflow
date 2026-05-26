@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from './email/email.service';
+import { UpdateNotificationPrefsDto } from './dto/update-notification-prefs.dto';
 
 interface TicketContext {
   ticketId: string;
@@ -70,6 +71,7 @@ export class NotificationsService {
           message: isClient
             ? `Your support request "${ticket.ticketTitle}" has been received. We'll be in touch soon.`
             : `A new ticket ${ticket.ticketNumber} — "${ticket.ticketTitle}" has been created.`,
+          prefKey: 'emailNewTicket',
           emailTo: user.email,
           emailPayload: {
             recipientName: user.firstName,
@@ -103,6 +105,7 @@ export class NotificationsService {
       type: 'TICKET_ASSIGNED',
       title: `Ticket assigned: ${ticket.ticketNumber}`,
       message: `You've been assigned to ticket ${ticket.ticketNumber} — "${ticket.ticketTitle}".`,
+      prefKey: 'emailAssigned',
       emailTo: assignedAgent.email,
       emailPayload: {
         recipientName: assignedAgent.firstName,
@@ -146,6 +149,7 @@ export class NotificationsService {
           type: 'NEW_COMMENT',
           title: `New reply on ${ticket.ticketNumber}`,
           message: `${commentPreview.slice(0, 100)}${commentPreview.length > 100 ? '…' : ''}`,
+          prefKey: 'emailNewMessage',
           emailTo: user.email,
           emailPayload: {
             recipientName: user.firstName,
@@ -199,6 +203,7 @@ export class NotificationsService {
           message: isClient
             ? `Your ticket "${ticket.ticketTitle}" status changed from ${fromLabel} to ${statusLabel}.`
             : `Ticket ${ticket.ticketNumber} — "${ticket.ticketTitle}" status changed to ${statusLabel}.`,
+          prefKey: 'emailStatusChanged',
           emailTo: recipient.email,
           emailPayload: {
             recipientName: recipient.firstName,
@@ -242,6 +247,7 @@ export class NotificationsService {
           type: 'TICKET_CLOSED',
           title: `Ticket ${ticket.ticketNumber} closed`,
           message: `Ticket "${ticket.ticketTitle}" has been closed.`,
+          prefKey: 'emailTicketClosed',
           emailTo: user.email,
           emailPayload: {
             recipientName: user.firstName,
@@ -279,6 +285,7 @@ export class NotificationsService {
       type: 'BILLING_REQUEST',
       title: `Payment request on ticket ${ticket.ticketNumber}`,
       message: `You have a new payment request of ${currency} ${amount}: "${description}"`,
+      prefKey: 'emailBillingRequest',
       emailTo: client.email,
       emailPayload: {
         recipientName: client.firstName,
@@ -315,6 +322,7 @@ export class NotificationsService {
       message: accepted
         ? `${clientName} accepted the payment request.`
         : `${clientName} declined the payment request${declineReason ? `: "${declineReason}"` : ''}.`,
+      prefKey: 'emailPaymentUpdate',
       emailTo: requester.email,
       emailPayload: {
         recipientName: requester.firstName,
@@ -353,6 +361,7 @@ export class NotificationsService {
           type: 'BILLING_APPROVAL_NEEDED',
           title: `Billing request needs your approval — ${ticket.ticketNumber}`,
           message: `${agent.firstName} ${agent.lastName} submitted a payment request of ${currency} ${amount} for review.`,
+          prefKey: 'emailBillingRequest',
           emailTo: admin.email,
           emailPayload: {
             recipientName: admin.firstName,
@@ -413,6 +422,60 @@ export class NotificationsService {
   // PRIVATE HELPERS
   // ============================================================
 
+  // ============================================================
+  // NOTIFICATION PREFERENCES — GET & UPSERT
+  // ============================================================
+
+  /** Returns the preferences record for a user, creating defaults if absent. */
+  async getPrefs(userId: string, tenantId: string) {
+    const existing = await this.prisma.notificationPreference.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+    });
+    if (existing) return existing;
+
+    // Create defaults on first access
+    return this.prisma.notificationPreference.create({
+      data: { userId, tenantId },
+    });
+  }
+
+  async upsertPrefs(userId: string, tenantId: string, dto: UpdateNotificationPrefsDto) {
+    return this.prisma.notificationPreference.upsert({
+      where: { userId_tenantId: { userId, tenantId } },
+      create: { userId, tenantId, ...dto },
+      update: dto,
+    });
+  }
+
+  // ============================================================
+  // PRIVATE — check if a user wants an email for a given event
+  // ============================================================
+  private async shouldSendEmail(
+    userId: string,
+    tenantId: string,
+    eventKey: keyof {
+      emailNewTicket: boolean;
+      emailStatusChanged: boolean;
+      emailAssigned: boolean;
+      emailNewMessage: boolean;
+      emailNewAttachment: boolean;
+      emailBillingRequest: boolean;
+      emailPaymentUpdate: boolean;
+      emailTicketClosed: boolean;
+    },
+  ): Promise<boolean> {
+    try {
+      const prefs = await this.prisma.notificationPreference.findUnique({
+        where: { userId_tenantId: { userId, tenantId } },
+      });
+      // No record = all defaults = send
+      if (!prefs) return true;
+      return prefs[eventKey] as boolean;
+    } catch {
+      return true; // fail open — always send on error
+    }
+  }
+
   private async createAndSendNotification(payload: {
     tenantId: string;
     recipientUserId: string;
@@ -421,6 +484,16 @@ export class NotificationsService {
     title: string;
     message: string;
     emailTo: string;
+    prefKey?: keyof {
+      emailNewTicket: boolean;
+      emailStatusChanged: boolean;
+      emailAssigned: boolean;
+      emailNewMessage: boolean;
+      emailNewAttachment: boolean;
+      emailBillingRequest: boolean;
+      emailPaymentUpdate: boolean;
+      emailTicketClosed: boolean;
+    };
     emailPayload: {
       recipientName: string;
       subject: string;
@@ -432,7 +505,7 @@ export class NotificationsService {
     };
   }) {
     try {
-      // 1. Write in-app notification record
+      // 1. Write in-app notification record (always)
       await this.prisma.notification.create({
         data: {
           tenantId: payload.tenantId,
@@ -444,14 +517,23 @@ export class NotificationsService {
         },
       });
 
-      // 2. Fire email — non-blocking, failures logged not thrown
+      // 2. Check user's email preference before sending
+      if (payload.prefKey) {
+        const allowed = await this.shouldSendEmail(
+          payload.recipientUserId,
+          payload.tenantId,
+          payload.prefKey,
+        );
+        if (!allowed) return; // in-app notification written, email skipped
+      }
+
+      // 3. Fire email — non-blocking, failures logged not thrown
       this.email
         .sendTicketNotification({
           to: payload.emailTo,
           ...payload.emailPayload,
         })
         .then(async () => {
-          // Mark email as sent on the notification record
           await this.prisma.notification.updateMany({
             where: {
               recipientUserId: payload.recipientUserId,

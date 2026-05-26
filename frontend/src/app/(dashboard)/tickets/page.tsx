@@ -84,6 +84,10 @@ export default function TicketsPage() {
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
+  // Real-time field validation
+  const [titleTouched, setTitleTouched] = useState(false);
+  const titleError = titleTouched && !form.title.trim() ? 'Title is required' : undefined;
+
   // ACTIVE and OPEN are always date-independent (no missing tickets over time)
   const dateRangeDisabled = status === 'ACTIVE' || status === 'OPEN';
 
@@ -133,6 +137,7 @@ export default function TicketsPage() {
 
   const createMutation = useMutation(
     async () => {
+      setTitleTouched(true);
       if (!form.title.trim()) { setFormError('Title is required'); return; }
       setFormError('');
       setUploadProgress(null);
@@ -162,6 +167,7 @@ export default function TicketsPage() {
         setStagedFiles([]);
         setUploadProgress(null);
         setFormError('');
+        setTitleTouched(false);
         notify.success('Ticket created');
       },
       onError: (err: unknown) => {
@@ -174,6 +180,9 @@ export default function TicketsPage() {
   );
 
   const isAdmin = user?.role === 'WORKSPACE_ADMIN' || user?.role === 'SUPER_ADMIN';
+
+  // Create Ticket button active only when the one required field is filled
+  const canCreateTicket = form.title.trim().length > 0;
 
   const handlePresetChange = (_: React.MouseEvent, value: DatePreset | null) => {
     if (!value) return;
@@ -425,6 +434,7 @@ export default function TicketsPage() {
             setStagedFiles([]);
             setUploadProgress(null);
             setFormError('');
+            setTitleTouched(false);
           }}
           title="New Ticket"
           size="md"
@@ -435,6 +445,8 @@ export default function TicketsPage() {
               placeholder="Briefly describe the issue"
               value={form.title}
               onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
+              onBlur={() => setTitleTouched(true)}
+              error={titleError}
             />
             <Textarea
               label="Description"
@@ -509,11 +521,16 @@ export default function TicketsPage() {
                   setStagedFiles([]);
                   setUploadProgress(null);
                   setFormError('');
+                  setTitleTouched(false);
                 }}
               >
                 Cancel
               </Button>
-              <Button isLoading={createMutation.isLoading} onClick={() => createMutation.mutate()}>
+              <Button
+                isLoading={createMutation.isLoading}
+                disabled={!canCreateTicket || createMutation.isLoading}
+                onClick={() => createMutation.mutate()}
+              >
                 {createMutation.isLoading
                   ? (uploadProgress ? `Uploading ${uploadProgress.done}/${uploadProgress.total}…` : 'Creating…')
                   : `Create Ticket${stagedFiles.length > 0 ? ` + ${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''}` : ''}`

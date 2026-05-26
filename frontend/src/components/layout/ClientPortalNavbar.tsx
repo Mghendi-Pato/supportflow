@@ -10,9 +10,9 @@ import { NotificationBell } from './NotificationBell';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 const navItems = [
-  { href: '/portal',          label: 'My Tickets' },
-  { href: '/portal/new',      label: 'New Ticket' },
-  { href: '/portal/spending', label: 'Spending', icon: Receipt },
+  { href: '/portal', label: 'My Tickets' },
+  { href: '/portal/new', label: 'New Ticket' },
+  { href: '/portal/spending', label: 'Billing', icon: Receipt },
 ];
 
 export function ClientPortalNavbar() {
@@ -45,7 +45,7 @@ export function ClientPortalNavbar() {
                     'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
                     active
                       ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                   )}
                 >
                   {label}
@@ -59,7 +59,8 @@ export function ClientPortalNavbar() {
             <NotificationBell />
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
               <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-semibold">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+                {user?.firstName?.[0]}
+                {user?.lastName?.[0]}
               </div>
               <span className="text-sm text-gray-700 hidden sm:block">
                 {user?.firstName} {user?.lastName}
@@ -83,7 +84,11 @@ export function ClientPortalNavbar() {
         description="You'll be signed out and redirected to the login page."
         confirmLabel="Sign out"
         cancelLabel="Stay signed in"
-        onConfirm={() => { setShowLogoutConfirm(false); notify.info('Signed out'); logout(); }}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          notify.info('Signed out');
+          logout();
+        }}
         onCancel={() => setShowLogoutConfirm(false)}
       />
     </header>

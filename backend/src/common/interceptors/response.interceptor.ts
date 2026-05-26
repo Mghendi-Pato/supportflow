@@ -4,24 +4,27 @@ import {
   ExecutionContext,
   CallHandler,
 } from '@nestjs/common';
+import { GqlContextType } from '@nestjs/graphql';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 /**
  * Global response interceptor.
- * Wraps every successful response in:
- * {
- *   success: true,
- *   data: <original response>,
- *   timestamp: string,
- * }
+ * Wraps REST responses in { success, data, timestamp }.
  *
- * Skips wrapping if the response is already in this shape
- * (e.g. paginated responses that return their own structure).
+ * GraphQL resolvers MUST be excluded — Apollo Server owns the response
+ * envelope ({ data, errors }) and wrapping the resolver's return value
+ * would corrupt the shape Apollo Server expects to serialize against
+ * the GraphQL schema types.
  */
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<T, any> {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    // Skip for GraphQL — Apollo Server manages its own response format
+    if (context.getType<GqlContextType>() === 'graphql') {
+      return next.handle();
+    }
+
     return next.handle().pipe(
       map((data) => ({
         success: true,

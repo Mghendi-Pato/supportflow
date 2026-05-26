@@ -12,3 +12,5 @@ client@acmepos.com Client@1234!
 agent@demoagency.com Agent@1234!
 owner@demoagency.com Owner@1234!
 admin@supportflow.app Admin@1234!
+
+open -a Docker

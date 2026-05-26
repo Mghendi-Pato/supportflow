@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotify, errMsg } from '@/hooks/useNotify';
 import api from '@/lib/api';
@@ -39,14 +40,67 @@ export default function ClientsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
 
+  // ── Real-time validation ─────────────────────────────────────────────────────
+  type FormField = 'contactName' | 'email' | 'companyName';
+  const [touched, setTouched] = useState<Partial<Record<FormField, boolean>>>({});
+  const touch = (f: FormField) => setTouched(t => ({ ...t, [f]: true }));
+  const touchAll = () => setTouched({ contactName: true, email: true, companyName: true });
+
+  const EMAIL_RE_INLINE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  function getInlineErrors(f: typeof EMPTY_FORM) {
+    return {
+      contactName: !f.contactName.trim() ? 'Contact name is required' : undefined,
+      email:       !f.email.trim()       ? 'Email is required'
+                 : !EMAIL_RE_INLINE.test(f.email.trim()) ? 'Enter a valid email address'
+                 : undefined,
+      companyName: !f.companyName.trim() ? 'Company name is required' : undefined,
+    };
+  }
+  const inlineErrors = getInlineErrors(form);
+  const fieldErr = (f: FormField) => touched[f] ? inlineErrors[f] : undefined;
+
   // Helpers to open create / edit modals
-  function openCreate() { setForm(EMPTY_FORM); setFormError(''); setShowCreate(true); }
+  function openCreate() {
+    setForm(EMPTY_FORM);
+    setFormError('');
+    setTouched({});
+    setShowCreate(true);
+  }
   function openEdit(c: Client) {
     setForm({ contactName: c.contactName, email: c.email, companyName: c.companyName, phone: c.phone ?? '', notes: c.notes ?? '' });
     setFormError('');
+    setTouched({});
     setEditTarget(c);
   }
-  function closeModal() { setShowCreate(false); setEditTarget(null); setFormError(''); }
+  function closeModal() { setShowCreate(false); setEditTarget(null); setFormError(''); setTouched({}); }
+
+  // ── Edit modal guards ────────────────────────────────────────────────────────
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // All required fields filled + email format valid
+  const editFormValid =
+    form.contactName.trim().length > 0 &&
+    form.companyName.trim().length > 0 &&
+    form.email.trim().length > 0 &&
+    EMAIL_RE.test(form.email.trim());
+
+  // At least one field differs from the original client record
+  const editFormDirty = editTarget
+    ? form.contactName.trim() !== (editTarget.contactName ?? '') ||
+      form.email.trim()       !== (editTarget.email       ?? '') ||
+      form.companyName.trim() !== (editTarget.companyName ?? '') ||
+      form.phone              !== (editTarget.phone        ?? '') ||
+      form.notes              !== (editTarget.notes        ?? '')
+    : false;
+
+  const canSaveEdit = editFormValid && editFormDirty;
+
+  // Create modal: just needs valid required fields (no dirty check — form starts empty)
+  const canCreateClient =
+    form.contactName.trim().length > 0 &&
+    form.companyName.trim().length > 0 &&
+    form.email.trim().length > 0 &&
+    EMAIL_RE.test(form.email.trim());
 
   const params = new URLSearchParams({ page: String(page), limit: '20' });
   if (search) params.set('search', search);
@@ -62,9 +116,9 @@ export default function ClientsPage() {
 
   const createMutation = useMutation(
     async () => {
-      if (!form.contactName.trim() || !form.email.trim() || !form.companyName.trim()) {
-        setFormError('Contact name, email and company are required');
-        return;
+      touchAll();
+      if (!form.contactName.trim() || !form.email.trim() || !form.companyName.trim() || !EMAIL_RE_INLINE.test(form.email.trim())) {
+        return; // inline errors now visible
       }
       await api.post('/clients', form);
     },
@@ -86,9 +140,9 @@ export default function ClientsPage() {
   const editMutation = useMutation(
     async () => {
       if (!editTarget) return;
-      if (!form.contactName.trim() || !form.email.trim() || !form.companyName.trim()) {
-        setFormError('Contact name, email and company are required');
-        return;
+      touchAll();
+      if (!form.contactName.trim() || !form.email.trim() || !form.companyName.trim() || !EMAIL_RE_INLINE.test(form.email.trim())) {
+        return; // inline errors now visible
       }
       await api.patch(`/clients/${editTarget.id}`, form);
     },
@@ -261,18 +315,57 @@ export default function ClientsPage() {
         size="md"
       >
         <div className="space-y-4">
-          <Input label="Contact name" placeholder="James Kariuki" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} />
-          <Input label="Email" type="email" placeholder="james@company.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-          <Input label="Company name" placeholder="Acme POS Solutions" value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))} />
-          <Input label="Phone" placeholder="+254712345678" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+          <Input
+            label="Contact name"
+            placeholder="James Kariuki"
+            value={form.contactName}
+            onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))}
+            onBlur={() => touch('contactName')}
+            error={fieldErr('contactName')}
+          />
+          <Input
+            label="Email"
+            type="email"
+            placeholder="james@company.com"
+            value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            onBlur={() => touch('email')}
+            error={fieldErr('email')}
+          />
+          <Input
+            label="Company name"
+            placeholder="Acme POS Solutions"
+            value={form.companyName}
+            onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+            onBlur={() => touch('companyName')}
+            error={fieldErr('companyName')}
+          />
+          <PhoneInput
+            label="Phone"
+            value={form.phone}
+            onChange={phone => setForm(f => ({ ...f, phone }))}
+            placeholder="712 345 678"
+          />
           <Textarea label="Internal notes" placeholder="Visible to staff only…" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           {formError && <div className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{formError}</div>}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={closeModal}>Cancel</Button>
             {editTarget ? (
-              <Button isLoading={editMutation.isLoading} onClick={() => editMutation.mutate()}>Save Changes</Button>
+              <Button
+                isLoading={editMutation.isLoading}
+                disabled={!canSaveEdit || editMutation.isLoading}
+                onClick={() => editMutation.mutate()}
+              >
+                Save Changes
+              </Button>
             ) : (
-              <Button isLoading={createMutation.isLoading} onClick={() => createMutation.mutate()}>Create Client</Button>
+              <Button
+                isLoading={createMutation.isLoading}
+                disabled={!canCreateClient || createMutation.isLoading}
+                onClick={() => createMutation.mutate()}
+              >
+                Create Client
+              </Button>
             )}
           </div>
         </div>

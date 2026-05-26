@@ -14,6 +14,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateNotificationPrefsDto } from '../notifications/dto/update-notification-prefs.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -25,7 +27,10 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
 @UseGuards(TenantGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   // ============================================================
   // PROFILE — any authenticated user
@@ -45,6 +50,25 @@ export class UsersController {
   @ApiOperation({ summary: 'Update own profile (name)' })
   updateProfile(@CurrentUser() user: JwtPayload, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(user.sub, dto);
+  }
+
+  /** GET /users/me/notification-prefs — get email notification preferences */
+  @Get('me/notification-prefs')
+  @Roles('SUPER_ADMIN', 'WORKSPACE_ADMIN', 'AGENT', 'CLIENT')
+  @ApiOperation({ summary: 'Get own email notification preferences' })
+  getNotificationPrefs(@CurrentUser() user: JwtPayload) {
+    return this.notificationsService.getPrefs(user.sub, user.tenantId ?? '');
+  }
+
+  /** PATCH /users/me/notification-prefs — update email notification preferences */
+  @Patch('me/notification-prefs')
+  @Roles('SUPER_ADMIN', 'WORKSPACE_ADMIN', 'AGENT', 'CLIENT')
+  @ApiOperation({ summary: 'Update own email notification preferences' })
+  updateNotificationPrefs(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateNotificationPrefsDto,
+  ) {
+    return this.notificationsService.upsertPrefs(user.sub, user.tenantId ?? '', dto);
   }
 
   /** PATCH /users/me/password — change password (revokes all sessions) */

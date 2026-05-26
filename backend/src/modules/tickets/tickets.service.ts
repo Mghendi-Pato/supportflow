@@ -242,7 +242,10 @@ export class TicketsService {
       where,
       include: {
         ...TICKET_INCLUDE,
+        // Only unlinked attachments (commentId: null) belong in the
+        // Attachments panel — message-linked ones live in the chat thread.
         attachments: {
+          where: { commentId: null },
           orderBy: { createdAt: 'asc' },
         },
         activityLogs: {
