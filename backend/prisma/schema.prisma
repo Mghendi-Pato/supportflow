@@ -5,8 +5,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // No url here — Prisma 7 requires driver adapter for runtime (see prisma.service.ts)
-  // CLI migrations/generate use the url from prisma.config.ts
+  // Used by Prisma CLI (migrate deploy, generate) and as fallback.
+  // At runtime the PrismaService overrides this via @prisma/adapter-pg.
+  url      = env("DATABASE_URL")
 }
 
 enum PlatformRole {
