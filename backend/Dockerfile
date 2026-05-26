@@ -34,9 +34,9 @@ COPY --from=builder /app/dist ./dist
 COPY prisma.config.prod.js ./prisma.config.js
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY prisma/schema.prisma ./prisma/schema.prisma
+COPY prisma ./prisma
 
 EXPOSE 3001
 
 # Run migrations then start — safe for VPS single-container deploys
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
