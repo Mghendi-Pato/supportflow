@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "BillingRequestStatus" ADD VALUE 'AWAITING_APPROVAL';
+
+-- AlterEnum
+ALTER TYPE "NotificationType" ADD VALUE 'BILLING_APPROVAL_NEEDED';
