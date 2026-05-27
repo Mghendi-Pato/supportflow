@@ -202,9 +202,30 @@ export class ClientsService {
       );
     }
 
+    // Obfuscate email to free up the unique slot so the same email can be
+    // re-added in future (same pattern as user soft-delete):
+    //   doe@email.com → doe@email.com1  (first deletion)
+    //   doe@email.com → doe@email.com2  (second deletion, after re-add)
+    const baseEmail = client.email;
+    const similar = await this.prisma.client.findMany({
+      where: { tenantId, email: { startsWith: baseEmail } },
+      select: { email: true },
+    });
+
+    let maxIndex = 0;
+    for (const c of similar) {
+      if (c.email === baseEmail) continue;
+      const suffix = c.email.slice(baseEmail.length);
+      if (/^\d+$/.test(suffix)) {
+        maxIndex = Math.max(maxIndex, parseInt(suffix, 10));
+      }
+    }
+
+    const obfuscatedEmail = `${baseEmail}${maxIndex + 1}`;
+
     return this.prisma.client.update({
       where: { id: clientId },
-      data: { deletedAt: new Date(), isActive: false },
+      data: { email: obfuscatedEmail, deletedAt: new Date(), isActive: false },
     });
   }
 

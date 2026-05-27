@@ -1,5 +1,5 @@
-ssh root@178.105.206.117 ---root
-ssh deploy@178.105.206.117 ---deploy
+ssh deploy@178.105.206.117ssh root@178.105.206.117 ---root
+---deploy
 
 # SupportFlow — Production Deployment & CI/CD Guide
 

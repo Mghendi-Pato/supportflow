@@ -1,0 +1,3 @@
+-- This migration is intentionally empty.
+-- Client email uniqueness on soft-delete is handled at the application layer
+-- via email obfuscation in ClientsService.remove() — same pattern as users.

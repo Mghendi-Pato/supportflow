@@ -15,7 +15,7 @@ admin@supportflow.app Admin@1234!
 
 open -a Docker
 
-docker logs supportflow_api --tail 20 --backend errors
+docker logs supportflow_api --tail 50
 
 ACCESS DB
 cd /opt/supportflow
@@ -26,3 +26,6 @@ Password: info@nubiannetworks.com
 
 Email: support@nubiannetworks.com
 Password: support@nubiannetworks.com
+
+ssh-keygen -R 178.105.206.117
+ssh root@178.105.206.117
