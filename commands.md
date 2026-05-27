@@ -14,3 +14,15 @@ owner@demoagency.com Owner@1234!
 admin@supportflow.app Admin@1234!
 
 open -a Docker
+
+docker logs supportflow_api --tail 20 --backend errors
+
+ACCESS DB
+cd /opt/supportflow
+docker compose exec postgres psql -U supportflow -d supportflow_production
+
+Email: info@nubiannetworks.com
+Password: info@nubiannetworks.com
+
+Email: support@nubiannetworks.com
+Password: support@nubiannetworks.com
