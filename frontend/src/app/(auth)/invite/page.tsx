@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { HeadphonesIcon, CheckCircle } from 'lucide-react';
+import { HeadphonesIcon, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import api from '@/lib/api';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -24,8 +24,10 @@ export default function InvitePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
-  const [serverError, setServerError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [serverError, setServerError]   = useState('');
+  const [success, setSuccess]           = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm,  setShowConfirm]  = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -41,7 +43,6 @@ export default function InvitePage() {
         password:  data.password,
       });
       setSuccess(true);
-      // Redirect to login with a welcome flag — more reliable than auto-login
       setTimeout(() => {
         router.replace('/login?welcome=1');
       }, 2000);
@@ -100,21 +101,57 @@ export default function InvitePage() {
             />
           </div>
 
-          <Input
-            label="Password"
-            type="password"
-            placeholder="Min. 8 characters"
-            error={errors.password?.message}
-            {...register('password')}
-          />
+          {/* Password with visibility toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Password</label>
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Min. 8 characters"
+                error={errors.password?.message}
+                className="pr-10"
+                {...register('password')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {errors.password?.message && (
+              <p className="text-xs text-red-600">{errors.password.message}</p>
+            )}
+          </div>
 
-          <Input
-            label="Confirm password"
-            type="password"
-            placeholder="Repeat your password"
-            error={errors.confirm?.message}
-            {...register('confirm')}
-          />
+          {/* Confirm password with visibility toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Confirm password</label>
+            <div className="relative">
+              <Input
+                type={showConfirm ? 'text' : 'password'}
+                placeholder="Repeat your password"
+                error={errors.confirm?.message}
+                className="pr-10"
+                {...register('confirm')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+                aria-label={showConfirm ? 'Hide password' : 'Show password'}
+              >
+                {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {errors.confirm?.message && (
+              <p className="text-xs text-red-600">{errors.confirm.message}</p>
+            )}
+          </div>
 
           {serverError && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">

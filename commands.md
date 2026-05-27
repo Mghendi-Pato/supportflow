@@ -29,3 +29,9 @@ Password: support@nubiannetworks.com
 
 ssh-keygen -R 178.105.206.117
 ssh root@178.105.206.117
+
+Monitor disk usage
+ssh root@178.105.206.117 "df -h / && docker system df"
+
+ACCES DB
+docker compose -f /opt/supportflow/docker-compose.yml exec postgres psql -U supportflow -d supportflow_production

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { HeadphonesIcon, CheckCircle2 } from 'lucide-react';
+import { HeadphonesIcon, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotify } from '@/hooks/useNotify';
 import { Input } from '@/components/ui/Input';
@@ -21,9 +21,10 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isNewAccount = searchParams.get('welcome') === '1';
-  const { login, user } = useAuth();
+  const { login } = useAuth();
   const notify = useNotify();
-  const [serverError, setServerError] = useState('');
+  const [serverError, setServerError]   = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -71,13 +72,32 @@ export default function LoginPage() {
             error={errors.email?.message}
             {...register('email')}
           />
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            error={errors.password?.message}
-            {...register('password')}
-          />
+
+          {/* Password with visibility toggle */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Password</label>
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                error={errors.password?.message}
+                className="pr-10"
+                {...register('password')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {errors.password?.message && (
+              <p className="text-xs text-red-600">{errors.password.message}</p>
+            )}
+          </div>
 
           {serverError && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">

@@ -223,6 +223,17 @@ export class ClientsService {
 
     const obfuscatedEmail = `${baseEmail}${maxIndex + 1}`;
 
+    // Expire any pending (unaccepted) invitations for this client's original
+    // email so a future client with the same email can be invited fresh.
+    await this.prisma.tenantInvitation.deleteMany({
+      where: {
+        tenantId,
+        email: baseEmail,
+        role: 'CLIENT',
+        acceptedAt: null,
+      },
+    });
+
     return this.prisma.client.update({
       where: { id: clientId },
       data: { email: obfuscatedEmail, deletedAt: new Date(), isActive: false },
