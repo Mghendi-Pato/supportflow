@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
-import { Plus, Search, Users, Send, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Users, Send, RefreshCw, Pencil, Trash2, CheckCircle2, Clock, UserX } from 'lucide-react';
 import { DashboardNavbar } from '@/components/layout/DashboardNavbar';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +16,7 @@ import { PhoneInput } from '@/components/ui/PhoneInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotify, errMsg } from '@/hooks/useNotify';
 import api from '@/lib/api';
+import { clientInviteStatus } from '@/types';
 import type { Client, PaginatedResponse } from '@/types';
 
 const EMPTY_FORM = { contactName: '', email: '', companyName: '', phone: '', notes: '' };
@@ -235,7 +236,7 @@ export default function ClientsPage() {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Company</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Portal Access</th>
                       {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
                     </tr>
                   </thead>
@@ -253,21 +254,49 @@ export default function ClientsPage() {
                         </td>
                         <td className="px-4 py-3 text-gray-500">{client.phone ?? '—'}</td>
                         <td className="px-4 py-3">
-                          <Badge variant={client.isActive ? 'success' : 'default'}>
-                            {client.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
+                          {(() => {
+                            const status = clientInviteStatus(client);
+                            if (status === 'accepted') return (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
+                                <CheckCircle2 size={11} /> Accepted
+                              </span>
+                            );
+                            if (status === 'invited') return (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
+                                <Clock size={11} /> Invited
+                              </span>
+                            );
+                            return (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-full px-2.5 py-0.5">
+                                <UserX size={11} /> Not invited
+                              </span>
+                            );
+                          })()}
                         </td>
                         {isAdmin && (
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setInviteClientId(client.id)}
-                                title="Send portal invite"
-                              >
-                                <Send size={14} /> Invite
-                              </Button>
+                              {clientInviteStatus(client) === 'accepted' ? (
+                                <span className="px-2 py-1 text-xs text-gray-400 select-none">Has access</span>
+                              ) : clientInviteStatus(client) === 'invited' ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setInviteClientId(client.id)}
+                                  title="Resend portal invite"
+                                >
+                                  <RefreshCw size={14} /> Resend
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setInviteClientId(client.id)}
+                                  title="Send portal invite"
+                                >
+                                  <Send size={14} /> Invite
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -402,19 +431,32 @@ export default function ClientsPage() {
       </Modal>
 
       {/* Invite Confirm Modal */}
-      <Modal isOpen={!!inviteClientId} onClose={() => setInviteClientId(null)} title="Send Portal Invitation" size="sm">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            This will send an email invite so the client can create their portal account and track their tickets.
-          </p>
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setInviteClientId(null)}>Cancel</Button>
-            <Button isLoading={inviteMutation.isLoading} onClick={() => inviteClientId && inviteMutation.mutate(inviteClientId)}>
-              <Send size={14} /> Send Invite
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {(() => {
+        const inviteClient = data?.data?.find(c => c.id === inviteClientId);
+        const isResend = inviteClient ? clientInviteStatus(inviteClient) === 'invited' : false;
+        return (
+          <Modal
+            isOpen={!!inviteClientId}
+            onClose={() => setInviteClientId(null)}
+            title={isResend ? 'Resend Portal Invitation' : 'Send Portal Invitation'}
+            size="sm"
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                {isResend
+                  ? 'The previous invitation will be cancelled and a fresh one sent to the client.'
+                  : 'This will send an email invite so the client can create their portal account and track their tickets.'}
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setInviteClientId(null)}>Cancel</Button>
+                <Button isLoading={inviteMutation.isLoading} onClick={() => inviteClientId && inviteMutation.mutate(inviteClientId)}>
+                  {isResend ? <><RefreshCw size={14} /> Resend Invite</> : <><Send size={14} /> Send Invite</>}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

@@ -108,13 +108,13 @@ export class UsersController {
     return this.usersService.getAllUsers(page ? Number(page) : 1, limit ? Number(limit) : 20, search);
   }
 
-  /** DELETE /users/:id — deactivate a user (super admin only) */
+  /** DELETE /users/:id — soft-delete a user with email obfuscation (super admin only) */
   @Delete(':id')
   @Roles('SUPER_ADMIN')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '[Super Admin] Deactivate a user' })
-  deactivateUser(@CurrentUser() user: JwtPayload, @Param('id') targetId: string) {
-    return this.usersService.deactivateUser(user.sub, targetId);
+  @ApiOperation({ summary: '[Super Admin] Soft-delete a user (obfuscates email to prevent re-registration conflicts)' })
+  softDeleteUser(@CurrentUser() user: JwtPayload, @Param('id') targetId: string) {
+    return this.usersService.softDeleteUser(user.sub, targetId);
   }
 
   /** GET /users/tenants — all workspaces (super admin only) */

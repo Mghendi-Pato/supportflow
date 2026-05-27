@@ -177,25 +177,56 @@ export class UsersService {
   }
 
   // ============================================================
-  // SUPER ADMIN — deactivate a user
+  // SUPER ADMIN — soft delete a user with email obfuscation
+  //
+  // To prevent future registration conflicts when a user re-registers
+  // after deletion, we append an incrementing numeric index to their
+  // email before setting deletedAt:
+  //   doe@email.com  → doe@email.com1  (first deletion)
+  //   doe@email.com  → doe@email.com2  (second deletion, after re-register)
   // ============================================================
-  async deactivateUser(requesterId: string, targetUserId: string) {
+  async softDeleteUser(requesterId: string, targetUserId: string) {
     if (requesterId === targetUserId) {
-      throw new ForbiddenException('You cannot deactivate your own account');
+      throw new ForbiddenException('You cannot delete your own account');
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, platformRole: true },
+      select: { id: true, email: true, platformRole: true, deletedAt: true },
     });
     if (!user) throw new NotFoundException('User not found');
+    if (user.deletedAt) throw new BadRequestException('User is already deleted');
     if (user.platformRole === 'SUPER_ADMIN') {
-      throw new ForbiddenException('Cannot deactivate a Super Admin');
+      throw new ForbiddenException('Cannot delete a Super Admin');
     }
+
+    // Find the next available index by scanning all existing users
+    // (including previously deleted ones) whose emails start with the base email.
+    const baseEmail = user.email;
+    const similar = await this.prisma.user.findMany({
+      where: { email: { startsWith: baseEmail } },
+      select: { email: true },
+    });
+
+    let maxIndex = 0;
+    for (const u of similar) {
+      if (u.email === baseEmail) continue; // skip the current record itself
+      const suffix = u.email.slice(baseEmail.length);
+      if (/^\d+$/.test(suffix)) {
+        maxIndex = Math.max(maxIndex, parseInt(suffix, 10));
+      }
+    }
+
+    const obfuscatedEmail = `${baseEmail}${maxIndex + 1}`;
 
     return this.prisma.user.update({
       where: { id: targetUserId },
-      data: { isActive: false, refreshTokenHash: null },
+      data: {
+        email: obfuscatedEmail,
+        isActive: false,
+        deletedAt: new Date(),
+        refreshTokenHash: null, // revoke all sessions immediately
+      },
       select: SAFE_USER_SELECT,
     });
   }

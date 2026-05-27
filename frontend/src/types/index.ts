@@ -45,6 +45,7 @@ export interface Tenant {
 export interface Client {
   id: string;
   tenantId: string;
+  userId: string | null;      // set once they accept the portal invite
   companyName: string;
   contactName: string;
   email: string;
@@ -54,6 +55,15 @@ export interface Client {
   invitedAt: string | null;
   onboardedAt: string | null;
   createdAt: string;
+}
+
+/** Derived invitation status for display purposes */
+export type ClientInviteStatus = 'not_invited' | 'invited' | 'accepted';
+
+export function clientInviteStatus(c: Client): ClientInviteStatus {
+  if (c.userId) return 'accepted';
+  if (c.invitedAt) return 'invited';
+  return 'not_invited';
 }
 
 // --- Tickets ---

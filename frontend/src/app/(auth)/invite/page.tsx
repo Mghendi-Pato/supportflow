@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { HeadphonesIcon, CheckCircle } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
 import api from '@/lib/api';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -25,7 +24,6 @@ export default function InvitePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
-  const { login } = useAuth();
   const [serverError, setServerError] = useState('');
   const [success, setSuccess] = useState(false);
 
@@ -36,18 +34,17 @@ export default function InvitePage() {
   const onSubmit = async (data: FormData) => {
     setServerError('');
     try {
-      const res = await api.post('/auth/invite/accept', {
+      await api.post('/auth/invite/accept', {
         token,
         firstName: data.firstName,
         lastName:  data.lastName,
         password:  data.password,
       });
-      const { email } = res.data.data;
       setSuccess(true);
-      setTimeout(async () => {
-        await login(email, data.password);
-        router.replace('/');
-      }, 1500);
+      // Redirect to login with a welcome flag — more reliable than auto-login
+      setTimeout(() => {
+        router.replace('/login?welcome=1');
+      }, 2000);
     } catch (err: any) {
       setServerError(err?.response?.data?.message || 'Invalid or expired invite link.');
     }

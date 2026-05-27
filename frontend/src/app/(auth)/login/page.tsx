@@ -1,11 +1,11 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { HeadphonesIcon } from 'lucide-react';
+import { HeadphonesIcon, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotify } from '@/hooks/useNotify';
 import { Input } from '@/components/ui/Input';
@@ -19,6 +19,8 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isNewAccount = searchParams.get('welcome') === '1';
   const { login, user } = useAuth();
   const notify = useNotify();
   const [serverError, setServerError] = useState('');
@@ -48,8 +50,17 @@ export default function LoginPage() {
           <HeadphonesIcon size={24} className="text-white" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Sign in to SupportFlow</h1>
-        <p className="text-sm text-gray-500 mt-1">Welcome back! Please enter your details.</p>
+        <p className="text-sm text-gray-500 mt-1">
+          {isNewAccount ? 'Your account is ready — sign in to get started.' : 'Welcome back! Please enter your details.'}
+        </p>
       </div>
+
+      {isNewAccount && (
+        <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-6">
+          <CheckCircle2 size={18} className="text-green-600 flex-shrink-0" />
+          <p className="text-sm text-green-800 font-medium">Account created successfully! Sign in with your new credentials.</p>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

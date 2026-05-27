@@ -80,9 +80,21 @@ export class ClientsService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
+        select: {
+          id: true,
+          tenantId: true,
+          userId: true,       // null = no portal account yet
+          contactName: true,
+          companyName: true,
+          email: true,
+          phone: true,
+          isActive: true,
+          invitedAt: true,
+          onboardedAt: true,
+          createdAt: true,
+          updatedAt: true,
           _count: { select: { tickets: true } },
-          // Don't expose internal notes in list view
+          // notes intentionally excluded from list view
         },
       }),
       this.prisma.client.count({ where }),
