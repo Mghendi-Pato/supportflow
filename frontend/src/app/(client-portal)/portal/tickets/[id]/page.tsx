@@ -90,7 +90,7 @@ export default function PortalTicketDetailPage() {
   if (!ticket) return null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
       {/* Back */}
       <div className="flex items-center gap-3">
         <Link href="/portal" className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -190,7 +190,7 @@ export default function PortalTicketDetailPage() {
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">Conversation</h2>
         </div>
-        <div style={{ minHeight: '400px' }} className="flex flex-col">
+        <div style={{ minHeight: 'clamp(280px, 50vw, 400px)' }} className="flex flex-col">
           {ticket.status !== 'CLOSED' ? (
             <ChatPanel ticketId={id} isClient={true} />
           ) : (

@@ -230,7 +230,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col h-full">
       <DashboardNavbar title="Settings" />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-3xl mx-auto space-y-8">
 
           {/* Profile */}
@@ -239,7 +239,7 @@ export default function SettingsPage() {
               <UserCog size={16} /> My Profile
             </h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="First name"
                   value={profileForm.firstName}
@@ -389,8 +389,8 @@ export default function SettingsPage() {
               ) : (
                 <div className="divide-y divide-gray-50">
                   {members.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between px-6 py-4">
-                      <div className="flex items-center gap-3">
+                    <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="h-9 w-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-semibold">
                           {m.user.firstName?.[0] ?? '?'}{m.user.lastName?.[0] ?? ''}
                         </div>
@@ -399,7 +399,7 @@ export default function SettingsPage() {
                           <p className="text-xs text-gray-500">{m.user.email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {m.userId === user?.id ? (
                           <Badge variant="info">{m.role?.replace('_', ' ')}</Badge>
                         ) : (

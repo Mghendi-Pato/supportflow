@@ -40,13 +40,13 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col h-full">
       <DashboardNavbar title="Dashboard" />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-64"><Spinner size="lg" /></div>
         ) : data ? (
           <div className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard icon={Ticket}       label="Total Tickets"   value={data.summary.totalTickets}    color="bg-primary-500" />
               <StatCard icon={Clock}        label="Open"            value={data.summary.openTickets}     color="bg-blue-500" />
               <StatCard icon={CheckCircle2} label="Closed"          value={data.summary.closedTickets}   color="bg-green-500" />
@@ -62,7 +62,7 @@ export default function DashboardPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               {/* By Status */}
               <Card>
                 <h2 className="text-sm font-semibold text-gray-700 mb-4">Tickets by Status</h2>

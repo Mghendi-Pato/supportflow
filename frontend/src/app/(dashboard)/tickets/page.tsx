@@ -203,10 +203,10 @@ export default function TicketsPage() {
             ) : null
           }
         />
-        <main className="flex-1 overflow-y-auto p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
 
           {/* ── Filters row ── */}
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-2 sm:gap-3">
             {/* Search */}
             <div className="relative flex-1 min-w-48">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -238,7 +238,7 @@ export default function TicketsPage() {
           </div>
 
           {/* ── Date range row ── */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 overflow-x-auto pb-1">
             <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Date range:</span>
             <ToggleButtonGroup
               value={preset}

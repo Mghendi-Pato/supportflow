@@ -82,7 +82,7 @@ export default function NewTicketPage() {
     : null;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/portal" className="text-gray-400 hover:text-gray-600 transition-colors">

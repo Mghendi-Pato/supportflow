@@ -198,7 +198,7 @@ export default function TicketDetailPage() {
         title={ticket.ticketNumber}
         actions={<Button variant="ghost" size="sm" onClick={() => router.back()}><ArrowLeft size={16} /> Back</Button>}
       />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* ── Main ── */}

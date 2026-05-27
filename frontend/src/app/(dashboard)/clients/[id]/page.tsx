@@ -40,7 +40,7 @@ export default function ClientDetailPage() {
           </Button>
         }
       />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-3 sm:p-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Profile card */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">

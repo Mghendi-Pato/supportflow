@@ -3,10 +3,24 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useSuperAdminTenant } from '@/contexts/SuperAdminTenantContext';
+import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext';
 import { DashboardSidebar } from '@/components/layout/DashboardSidebar';
 import { PageLoader } from '@/components/ui/Spinner';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+/** Darkened backdrop — tapping it closes the sidebar on mobile */
+function MobileBackdrop() {
+  const { isOpen, close } = useSidebar();
+  if (!isOpen) return null;
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-black/40 md:hidden"
+      onClick={close}
+      aria-hidden="true"
+    />
+  );
+}
+
+function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const { selectedWorkspace } = useSuperAdminTenant();
   const router = useRouter();
@@ -14,18 +28,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (isLoading) return;
-
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
-
-    if (user.role === 'CLIENT') {
-      router.replace('/portal');
-      return;
-    }
-
-    // SUPER_ADMIN must select a workspace before accessing the dashboard
+    if (!user) { router.replace('/login'); return; }
+    if (user.role === 'CLIENT') { router.replace('/portal'); return; }
     if (user.role === 'SUPER_ADMIN' && !selectedWorkspace) {
       router.replace('/select-workspace');
     }
@@ -33,16 +37,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isLoading) return <PageLoader />;
   if (!user || user.role === 'CLIENT') return null;
-
-  // Don't render dashboard shell while SUPER_ADMIN is being redirected to picker
   if (user.role === 'SUPER_ADMIN' && !selectedWorkspace) return <PageLoader />;
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <MobileBackdrop />
+      {/* min-w-0 prevents flex children from overflowing */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {children}
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarProvider>
+      <DashboardShell>{children}</DashboardShell>
+    </SidebarProvider>
   );
 }
