@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { Select } from '@/components/ui/Select';
 import { AttachmentStager, type StagedFile } from '@/components/ui/AttachmentStager';
 import { useNotify } from '@/hooks/useNotify';
@@ -107,15 +107,15 @@ export default function NewTicketPage() {
           />
 
           {/* Description */}
-          <Textarea
-            label="Description"
-            placeholder="Please describe the issue in as much detail as possible. Include steps to reproduce, error messages, or relevant context."
-            rows={6}
-            value={form.description}
-            onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-            onBlur={() => setDescTouched(true)}
-            error={descError}
-          />
+          <div onBlur={() => setDescTouched(true)}>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
+            <RichTextEditor
+              value={form.description}
+              onChange={(html) => setForm(f => ({ ...f, description: html }))}
+              placeholder="Please describe the issue in as much detail as possible. Include steps to reproduce, error messages, or relevant context."
+              error={descError}
+            />
+          </div>
 
           {/* Priority */}
           <Select

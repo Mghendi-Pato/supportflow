@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -26,7 +27,6 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -38,19 +38,17 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
+      className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
       <div
         className={clsx(
           'w-full bg-white flex flex-col',
-          // Mobile: slides up from bottom, full width, rounded top corners
           'rounded-t-2xl sm:rounded-2xl',
           'max-h-[92vh] sm:max-h-[90vh]',
-          // Desktop: constrained width
           desktopSizes[size],
           'shadow-xl',
         )}
@@ -73,6 +71,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         )}
         <div className="overflow-y-auto flex-1 p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

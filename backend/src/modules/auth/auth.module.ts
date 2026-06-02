@@ -6,6 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Module({
@@ -28,6 +29,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
   providers: [
     AuthService,
     JwtStrategy,
+    GoogleStrategy,
 
     // Register JwtAuthGuard globally — all routes protected by default.
     // Use @Public() decorator on any route that should be open.

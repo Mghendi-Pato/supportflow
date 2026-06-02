@@ -21,8 +21,8 @@ enum TenantMemberRole {
 
 enum TenantPlan {
   FREE
-  PRO
-  AGENCY
+  STANDARD
+  PREMIUM
 }
 
 enum TicketStatus {
@@ -106,7 +106,10 @@ model User {
   isActive          Boolean      @default(true) @map("is_active")
   emailVerifiedAt   DateTime?    @map("email_verified_at")
   lastLoginAt       DateTime?    @map("last_login_at")
-  refreshTokenHash  String?      @map("refresh_token_hash") // Hashed refresh token for rotation + revocation
+  googleId              String?      @unique @map("google_id")
+  refreshTokenHash      String?      @map("refresh_token_hash") // Hashed refresh token for rotation + revocation
+  passwordResetToken    String?      @unique @map("password_reset_token")
+  passwordResetExpiresAt DateTime?   @map("password_reset_expires_at")
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
   deletedAt       DateTime?    @map("deleted_at")
@@ -140,9 +143,11 @@ model Tenant {
   slug      String     @unique
   plan      TenantPlan @default(FREE)
   isActive  Boolean    @default(true) @map("is_active")
-  logoUrl   String?    @map("logo_url")
-  settings  Json       @default("{}")
-  ownerId   String     @map("owner_id")
+  logoUrl       String?    @map("logo_url")
+  inboundEmail  String?    @unique @map("inbound_email") // e.g. acme@inbound.yourdomain.com
+  settings      Json       @default("{}")
+  ownerId       String     @map("owner_id")
+  planRenewsAt  DateTime?  @map("plan_renews_at") // when the current billing period ends
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
   deletedAt DateTime?  @map("deleted_at")
@@ -155,6 +160,7 @@ model Tenant {
   invitations     TenantInvitation[]
   ticketSequence  TenantTicketSequence?
   billingRequests BillingRequest[]
+  apiKeys         ApiKey[]
 
   @@index([slug])
   @@index([ownerId])
@@ -446,6 +452,46 @@ model MessageReceipt {
   @@unique([commentId, userId])
   @@index([commentId])
   @@map("message_receipts")
+}
+
+// ============================================================
+// PENDING REGISTRATIONS — email-first sign-up flow
+// ============================================================
+
+model PendingRegistration {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
+  // Stores partial form data between steps (first/last name, workspace name, etc.)
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([email])
+  @@map("pending_registrations")
+}
+
+// ============================================================
+// API KEYS — tenant-scoped programmatic access
+// ============================================================
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  tenantId   String    @map("tenant_id")
+  name       String
+  keyHash    String    @unique @map("key_hash")   // SHA-256(rawKey) — never store raw
+  keyPrefix  String    @map("key_prefix")          // first 16 chars for display
+  lastUsedAt DateTime? @map("last_used_at")
+  isActive   Boolean   @default(true) @map("is_active")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([keyHash])
+  @@map("api_keys")
 }
 
 // ============================================================

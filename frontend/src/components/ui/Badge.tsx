@@ -1,10 +1,12 @@
 import { clsx } from 'clsx';
 import type { TicketStatus, TicketPriority } from '@/types';
+import { Tooltip } from './Tooltip';
 
 interface BadgeProps {
   children: React.ReactNode;
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple';
   size?: 'sm' | 'md';
+  tooltip?: string;
 }
 
 const variants = {
@@ -16,48 +18,75 @@ const variants = {
   purple:  'bg-purple-100 text-purple-800',
 };
 
-export function Badge({ children, variant = 'default', size = 'sm' }: BadgeProps) {
-  return (
+export function Badge({ children, variant = 'default', size = 'sm', tooltip }: BadgeProps) {
+  const badge = (
     <span
       className={clsx(
         'inline-flex items-center font-medium rounded-full',
+        tooltip && 'cursor-default',
         size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm',
-        variants[variant]
+        variants[variant],
       )}
     >
       {children}
     </span>
   );
+
+  if (tooltip) {
+    return <Tooltip text={tooltip}>{badge}</Tooltip>;
+  }
+  return badge;
 }
 
-const statusConfig: Record<TicketStatus, { label: string; variant: BadgeProps['variant'] }> = {
-  OPEN:        { label: 'Open',        variant: 'info' },
-  IN_PROGRESS: { label: 'Ongoing',     variant: 'warning' },
-  WAITING:     { label: 'Waiting',     variant: 'purple' },
-  FIXED:       { label: 'Fixed',       variant: 'success' },
-  CLOSED:      { label: 'Closed',      variant: 'default' },
+// ── Status ────────────────────────────────────────────────────────────────────
+
+const statusConfig: Record<TicketStatus, {
+  label: string;
+  variant: BadgeProps['variant'];
+  tooltip: string;
+}> = {
+  OPEN:        { label: 'Open',    variant: 'info',    tooltip: 'Ticket is open and awaiting action' },
+  IN_PROGRESS: { label: 'Ongoing', variant: 'warning', tooltip: 'Your ticket is being actively worked on' },
+  WAITING:     { label: 'Waiting', variant: 'purple',  tooltip: 'Waiting for more information or a response' },
+  FIXED:       { label: 'Fixed',   variant: 'success', tooltip: 'The issue has been resolved' },
+  CLOSED:      { label: 'Closed',  variant: 'default', tooltip: 'This ticket is closed' },
 };
 
-const priorityConfig: Record<TicketPriority, { label: string; variant: BadgeProps['variant'] }> = {
-  LOW:      { label: 'Low',      variant: 'default' },
-  MEDIUM:   { label: 'Medium',   variant: 'info' },
-  HIGH:     { label: 'High',     variant: 'warning' },
-  CRITICAL: { label: 'Critical', variant: 'danger' },
-};
-
-export function StatusBadge({ status }: { status: TicketStatus }) {
+export function StatusBadge({ status, showTooltip = false }: { status: TicketStatus; showTooltip?: boolean }) {
   const cfg = statusConfig[status];
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+  return (
+    <Badge variant={cfg.variant} tooltip={showTooltip ? cfg.tooltip : undefined}>
+      {cfg.label}
+    </Badge>
+  );
 }
 
-export function PriorityBadge({ priority }: { priority: TicketPriority }) {
+// ── Priority ──────────────────────────────────────────────────────────────────
+
+const priorityConfig: Record<TicketPriority, {
+  label: string;
+  variant: BadgeProps['variant'];
+  tooltip: string;
+}> = {
+  LOW:      { label: 'Low',      variant: 'default', tooltip: 'Low priority — no immediate urgency' },
+  MEDIUM:   { label: 'Medium',   variant: 'info',    tooltip: 'Medium priority — moderate impact on operations' },
+  HIGH:     { label: 'High',     variant: 'warning', tooltip: 'High priority — significant impact, needs prompt attention' },
+  CRITICAL: { label: 'Critical', variant: 'danger',  tooltip: 'Critical — business operations are blocked' },
+};
+
+export function PriorityBadge({ priority, showTooltip = false }: { priority: TicketPriority; showTooltip?: boolean }) {
   const cfg = priorityConfig[priority];
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+  return (
+    <Badge variant={cfg.variant} tooltip={showTooltip ? cfg.tooltip : undefined}>
+      {cfg.label}
+    </Badge>
+  );
 }
 
-/** Shows "Paid" (green) or "Free" (gray) based on the ticket.isPaid flag */
-export function PaidBadge({ isPaid }: { isPaid: boolean }) {
+// ── Paid ──────────────────────────────────────────────────────────────────────
+
+export function PaidBadge({ isPaid, showTooltip = false }: { isPaid: boolean; showTooltip?: boolean }) {
   return isPaid
-    ? <Badge variant="success">💳 Paid</Badge>
-    : <Badge variant="default">Free</Badge>;
+    ? <Badge variant="success" tooltip={showTooltip ? 'A payment has been made for this ticket' : undefined}>💳 Paid</Badge>
+    : <Badge variant="default" tooltip={showTooltip ? 'No payment has been requested for this ticket' : undefined}>Free</Badge>;
 }

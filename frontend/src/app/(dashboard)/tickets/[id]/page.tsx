@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
-  ArrowLeft, DollarSign, CheckCircle2, ShieldCheck, Clock, Download,
+  ArrowLeft, DollarSign, CheckCircle2, ShieldCheck, Clock, Download, Pencil, X,
 } from 'lucide-react';
 import { DashboardNavbar } from '@/components/layout/DashboardNavbar';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +16,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Modal } from '@/components/ui/Modal';
 import { AttachmentPreview, downloadAllAsZip } from '@/components/ui/AttachmentPreview';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { RichTextContent } from '@/components/ui/RichTextContent';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import dynamic from 'next/dynamic';
 
 // Loaded browser-only: ChatPanel uses WebSocket subscriptions and Apollo hooks
@@ -79,6 +81,12 @@ export default function TicketDetailPage() {
   const [showBilling, setShowBilling]   = useState(false);
   const [billingForm, setBillingForm]   = useState({ amount: '', currency: 'KES', description: '' });
   const [billingError, setBillingError] = useState('');
+
+  const closeBillingModal = () => {
+    setShowBilling(false);
+    setBillingForm({ amount: '', currency: 'KES', description: '' });
+    setBillingError('');
+  };
 
   // Send Request active only when amount is a valid positive number and description is filled
   const billingValid =
@@ -149,6 +157,35 @@ export default function TicketDetailPage() {
     }
   );
 
+  // Inline edit state
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: '', description: '' });
+
+  const saveEdit = useMutation(
+    async () => {
+      await api.patch(`/tickets/${id}`, {
+        title: editForm.title.trim() || ticket?.title,
+        description: editForm.description,
+      });
+    },
+    {
+      onSuccess: () => {
+        qc.invalidateQueries(['ticket', id]);
+        qc.invalidateQueries('tickets');
+        setEditing(false);
+        notify.success('Ticket updated');
+      },
+      onError: (err: unknown) => notify.error(errMsg(err, 'Failed to save changes')),
+    }
+  );
+
+  const startEdit = () => {
+    setEditForm({ title: ticket!.title, description: ticket!.description });
+    setEditing(true);
+  };
+
+  const cancelEdit = () => setEditing(false);
+
   const approveBillingRequest = useMutation(
     async (billingId: string) => { await api.patch(`/billing-requests/${billingId}/approve`); },
     {
@@ -162,23 +199,25 @@ export default function TicketDetailPage() {
 
   const createBillingRequest = useMutation(
     async () => {
-      if (!billingForm.amount || !billingForm.description) { setBillingError('Amount and description are required'); return; }
+      if (!billingForm.amount || !billingForm.description.trim()) {
+        setBillingError('Amount and description are required');
+        throw new Error('validation');
+      }
       await api.post('/billing-requests', {
         ticketId: id,
         amount: parseFloat(billingForm.amount),
         currency: billingForm.currency,
         description: billingForm.description,
       });
-      setShowBilling(false);
-      setBillingForm({ amount: '', currency: 'KES', description: '' });
-      setBillingError('');
     },
     {
       onSuccess: () => {
         qc.invalidateQueries(['billing', id]);
+        closeBillingModal();
         notify.success('Payment request submitted');
       },
       onError: (err: unknown) => {
+        if ((err as Error).message === 'validation') return;
         const msg = errMsg(err, 'Failed to send billing request');
         setBillingError(msg);
         notify.error(msg);
@@ -212,9 +251,62 @@ export default function TicketDetailPage() {
                 <span className="text-xs text-gray-400">
                   Opened {formatDistanceToNow(new Date(ticket.createdAt), { addSuffix: true })}
                 </span>
+                {/* Edit button — admins and agents only */}
+                {isAdmin && !editing && (
+                  <button
+                    onClick={startEdit}
+                    className="ml-auto flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-primary-600 transition-colors"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                )}
+                {editing && (
+                  <button
+                    onClick={cancelEdit}
+                    className="ml-auto flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <X size={12} /> Cancel
+                  </button>
+                )}
               </div>
-              <h1 className="text-xl font-bold text-gray-900 mb-3">{ticket.title}</h1>
-              <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+
+              {editing ? (
+                <div className="space-y-3">
+                  {/* Title */}
+                  <input
+                    value={editForm.title}
+                    onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    className="w-full text-lg font-bold text-gray-900 border-b border-gray-200 focus:border-primary-500 outline-none pb-1 bg-transparent"
+                    placeholder="Ticket title"
+                  />
+                  {/* Description */}
+                  <RichTextEditor
+                    value={editForm.description}
+                    onChange={html => setEditForm(f => ({ ...f, description: html }))}
+                    placeholder="Describe the issue…"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      onClick={cancelEdit}
+                      className="px-4 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <Button
+                      size="sm"
+                      isLoading={saveEdit.isLoading}
+                      onClick={() => saveEdit.mutate()}
+                    >
+                      Save changes
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-xl font-bold text-gray-900 mb-3">{ticket.title}</h1>
+                  <RichTextContent html={ticket.description} className="text-gray-600" />
+                </>
+              )}
             </div>
 
             {/* Billing request cards */}
@@ -411,17 +503,20 @@ export default function TicketDetailPage() {
       />
 
       {/* Billing Request Modal */}
-      <Modal isOpen={showBilling} onClose={() => { setShowBilling(false); setBillingError(''); }} title="Request Payment from Client" size="sm">
+      <Modal isOpen={showBilling} onClose={closeBillingModal} title="Request Payment from Client" size="sm">
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <Input label="Amount" type="number" min="0" step="0.01" placeholder="e.g. 5000"
                 value={billingForm.amount} onChange={e => setBillingForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
-            <Select label="Currency"
+            <Select
+              label="Currency"
+              disablePortal
               options={[{ value: 'KES', label: 'KES' }, { value: 'USD', label: 'USD' }, { value: 'EUR', label: 'EUR' }]}
               value={billingForm.currency}
-              onChange={e => setBillingForm(f => ({ ...f, currency: e.target.value }))} />
+              onChange={e => setBillingForm(f => ({ ...f, currency: e.target.value }))}
+            />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">Description</label>
@@ -431,7 +526,7 @@ export default function TicketDetailPage() {
           </div>
           {billingError && <p className="text-sm text-red-600">{billingError}</p>}
           <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => { setShowBilling(false); setBillingError(''); }}>Cancel</Button>
+            <Button variant="secondary" onClick={closeBillingModal}>Cancel</Button>
             <Button
               isLoading={createBillingRequest.isLoading}
               disabled={!billingValid || createBillingRequest.isLoading}

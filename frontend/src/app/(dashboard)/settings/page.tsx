@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Users, Trash2, Send, Plus, UserCog, Bell } from 'lucide-react';
+import { Users, Trash2, Send, Plus, UserCog, Bell, Mail, Copy, Check, Key, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import api from '@/lib/api';
 
@@ -92,6 +93,18 @@ export default function SettingsPage() {
   const [inviteTouched, setInviteTouched] = useState(false);
   const inviteEmailError = inviteTouched && !EMAIL_RE_SETTINGS.test(inviteForm.email.trim())
     ? 'Enter a valid email address' : undefined;
+
+  const [copied, setCopied] = useState(false);
+  const copyInboundEmail = (address: string) => {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const { data: tenantData } = useQuery('tenant-settings', async () => {
+    const res = await api.get('/workspace');
+    return res.data.data;
+  }, { enabled: isAdmin });
 
   const [removeMemberTarget, setRemoveMemberTarget] = useState<{ userId: string; name: string } | null>(null);
   const [revokeInviteTarget, setRevokeInviteTarget] = useState<{ id: string; email: string } | null>(null);
@@ -369,6 +382,61 @@ export default function SettingsPage() {
               </div>
             )}
           </Card>
+
+          {/* Email-to-Ticket (admin only) */}
+          {isAdmin && tenantData?.inboundEmail && (
+            <Card>
+              <h2 className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                <Mail size={16} /> Email-to-Ticket
+              </h2>
+              <p className="text-xs text-gray-400 mb-4">
+                Clients can email this address to automatically open a support ticket. Only registered client emails are accepted.
+              </p>
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                <span className="flex-1 text-sm font-mono text-gray-700 truncate">
+                  {tenantData.inboundEmail}
+                </span>
+                <button
+                  onClick={() => copyInboundEmail(tenantData.inboundEmail)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors shrink-0"
+                >
+                  {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-3">
+                To activate, add an MX record on your domain pointing to Resend's inbound servers and configure this address as an inbound route in your Resend dashboard.
+              </p>
+            </Card>
+          )}
+
+          {/* API Access (admin only) */}
+          {isAdmin && (
+            <Card>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
+                    <Key size={16} className="text-primary-600" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-gray-800 text-sm">API Access</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Generate API keys to integrate SupportFlow with your tools and workflows.
+                      {(user?.tenant as any)?.plan !== 'PREMIUM' && (
+                        <span className="ml-1 text-amber-600 font-medium">Premium only.</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/settings/api-keys"
+                  className="flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors shrink-0"
+                >
+                  Manage <ArrowRight size={14} />
+                </Link>
+              </div>
+            </Card>
+          )}
 
           {/* Team Members (admin only) */}
           {isAdmin && (

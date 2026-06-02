@@ -9,10 +9,16 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { RegisterDto } from './dto/register.dto';
+import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { PreRegisterDto } from './dto/pre-register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { EmailService } from '../notifications/email/email.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -22,6 +28,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {}
 
   // ============================================================
@@ -59,12 +66,15 @@ export class AuthService {
         },
       });
 
+      const slug = dto.workspaceSlug.toLowerCase();
+      const inboundDomain = this.config.get<string>('INBOUND_EMAIL_DOMAIN') || 'inbound.supportflow.app';
       const tenant = await tx.tenant.create({
         data: {
           name: dto.workspaceName,
-          slug: dto.workspaceSlug.toLowerCase(),
+          slug,
           plan: 'FREE',
           ownerId: user.id,
+          inboundEmail: `${slug}@${inboundDomain}`,
         },
       });
 
@@ -344,6 +354,310 @@ export class AuthService {
       tenantId,
       tenant,
     };
+  }
+
+  // ============================================================
+  // GOOGLE OAUTH — find or create user from Google profile
+  // ============================================================
+  async handleGoogleLogin(googleUser: {
+    googleId:  string;
+    email:     string;
+    firstName: string;
+    lastName:  string;
+    avatarUrl: string | null;
+  }) {
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { googleId: googleUser.googleId },
+          { email: googleUser.email.toLowerCase() },
+        ],
+        deletedAt: null,
+      },
+      include: {
+        tenantMemberships: {
+          where: { isActive: true },
+          include: { tenant: { select: { id: true, name: true, slug: true, plan: true } } },
+          take: 1,
+        },
+        clientRecord: {
+          where: { deletedAt: null },
+          include: { tenant: { select: { id: true, name: true, slug: true, plan: true } } },
+        },
+      },
+    });
+
+    const isNewUser = !user;
+
+    if (user) {
+      // Link Google ID if not already linked
+      if (!user.googleId) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId:  googleUser.googleId,
+            avatarUrl: googleUser.avatarUrl ?? user.avatarUrl,
+          },
+        });
+      }
+    } else {
+      // New user — create account without a workspace
+      // They will be redirected to create one after login
+      const inboundDomain = this.config.get<string>('INBOUND_EMAIL_DOMAIN') || 'inbound.supportflow.app';
+      user = await this.prisma.user.create({
+        data: {
+          email:           googleUser.email.toLowerCase(),
+          passwordHash:    await bcrypt.hash(crypto.randomUUID(), BCRYPT_ROUNDS), // unusable password
+          firstName:       googleUser.firstName,
+          lastName:        googleUser.lastName,
+          avatarUrl:       googleUser.avatarUrl,
+          googleId:        googleUser.googleId,
+          platformRole:    'MEMBER',
+          emailVerifiedAt: new Date(),
+        },
+        include: {
+          tenantMemberships: {
+            where: { isActive: true },
+            include: { tenant: { select: { id: true, name: true, slug: true, plan: true } } },
+            take: 1,
+          },
+          clientRecord: {
+            where: { deletedAt: null },
+            include: { tenant: { select: { id: true, name: true, slug: true, plan: true } } },
+          },
+        },
+      });
+    }
+
+    if (!user.isActive) {
+      throw new Error('Account deactivated');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const { role, tenantId, tenant } = this.resolveUserContext(user);
+
+    const tokens = await this.generateTokens({
+      sub:          user.id,
+      email:        user.email,
+      platformRole: user.platformRole,
+      tenantId,
+      role,
+    });
+
+    await this.storeRefreshToken(user.id, tokens.refreshToken);
+
+    return { ...tokens, user: this.sanitizeUser(user), tenant, isNewUser };
+  }
+
+  // ============================================================
+  // PRE-REGISTER — step 1: send verification email
+  // ============================================================
+  async preRegister(dto: PreRegisterDto) {
+    const email = dto.email.toLowerCase();
+
+    // Check if email is already registered
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      // Silent — don't reveal whether an account exists (anti-enumeration)
+      return { message: 'If this email is not already registered, a verification link has been sent.' };
+    }
+
+    // Upsert a pending registration record (24 h expiry)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const metadata = dto.plan ? { plan: dto.plan } : {};
+
+    await this.prisma.pendingRegistration.upsert({
+      where: { email },
+      create: { email, token, expiresAt, metadata },
+      update: { token, expiresAt, metadata },
+    });
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const verifyUrl = `${frontendUrl}/register/complete?token=${token}`;
+
+    await this.email.sendRegistrationVerificationEmail({ to: email, verifyUrl });
+
+    return { message: 'If this email is not already registered, a verification link has been sent.' };
+  }
+
+  // ============================================================
+  // VERIFY REGISTRATION TOKEN — validate token (GET, no side-effects)
+  // ============================================================
+  async verifyRegistrationToken(token: string) {
+    const pending = await this.prisma.pendingRegistration.findUnique({ where: { token } });
+    if (!pending) throw new BadRequestException('Verification link is invalid or has already been used.');
+    if (new Date() > pending.expiresAt) {
+      await this.prisma.pendingRegistration.delete({ where: { token } });
+      throw new BadRequestException('Verification link has expired. Please start the registration process again.');
+    }
+    const meta = pending.metadata as Record<string, any>;
+    return { valid: true, email: pending.email, plan: meta?.plan ?? 'FREE' };
+  }
+
+  // ============================================================
+  // COMPLETE REGISTRATION — step 2: create account from token
+  // ============================================================
+  async completeRegistration(dto: CompleteRegistrationDto) {
+    // Validate token
+    const pending = await this.prisma.pendingRegistration.findUnique({ where: { token: dto.token } });
+    if (!pending) throw new BadRequestException('Verification link is invalid or has already been used.');
+    if (new Date() > pending.expiresAt) {
+      await this.prisma.pendingRegistration.delete({ where: { token: dto.token } });
+      throw new BadRequestException('Verification link has expired. Please start the registration process again.');
+    }
+
+    // Guard against duplicate accounts
+    const existingUser = await this.prisma.user.findUnique({ where: { email: pending.email } });
+    if (existingUser) throw new ConflictException('An account with this email already exists.');
+
+    const slugTaken = await this.prisma.tenant.findUnique({ where: { slug: dto.workspaceSlug.toLowerCase() } });
+    if (slugTaken) throw new ConflictException('This workspace URL is already taken. Please choose a different slug.');
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const slug = dto.workspaceSlug.toLowerCase();
+    const inboundDomain = this.config.get<string>('INBOUND_EMAIL_DOMAIN') || 'inbound.supportflow.app';
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: pending.email,
+          passwordHash,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          platformRole: 'MEMBER',
+          emailVerifiedAt: new Date(),
+        },
+      });
+
+      const tenant = await tx.tenant.create({
+        data: {
+          name: dto.workspaceName,
+          slug,
+          plan: 'FREE', // Always start FREE — upgrade via payment
+          ownerId: user.id,
+          inboundEmail: `${slug}@${inboundDomain}`,
+        },
+      });
+
+      await tx.tenantMember.create({
+        data: {
+          tenantId: tenant.id,
+          userId: user.id,
+          role: 'WORKSPACE_ADMIN',
+          joinedAt: new Date(),
+        },
+      });
+
+      await tx.tenantTicketSequence.create({
+        data: { tenantId: tenant.id, prefix: 'SUP', currentValue: 0 },
+      });
+
+      // Consume the pending registration token
+      await tx.pendingRegistration.delete({ where: { id: pending.id } });
+
+      return { user, tenant };
+    });
+
+    const tokens = await this.generateTokens({
+      sub: result.user.id,
+      email: result.user.email,
+      platformRole: 'MEMBER',
+      tenantId: result.tenant.id,
+      role: 'WORKSPACE_ADMIN',
+    });
+    await this.storeRefreshToken(result.user.id, tokens.refreshToken);
+
+    const requiresPayment = dto.plan !== 'FREE';
+
+    return {
+      ...tokens,
+      user: this.sanitizeUser(result.user),
+      tenant: { id: result.tenant.id, name: result.tenant.name, slug: result.tenant.slug, plan: result.tenant.plan },
+      requiresPayment,
+      selectedPlan: dto.plan,
+    };
+  }
+
+  // ============================================================
+  // FORGOT PASSWORD — generate token + send email
+  // ============================================================
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase(), deletedAt: null },
+    });
+
+    // Always return the same response — don't leak whether email exists
+    const genericResponse = {
+      message: 'If an account with that email exists, a reset link has been sent.',
+    };
+
+    if (!user || !user.isActive) return genericResponse;
+
+    // Generate a secure random token (URL-safe hex string)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: token,
+        passwordResetExpiresAt: expiresAt,
+      },
+    });
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+    await this.email.sendPasswordResetEmail({
+      to: user.email,
+      firstName: user.firstName,
+      resetUrl,
+    });
+
+    return genericResponse;
+  }
+
+  // ============================================================
+  // RESET PASSWORD — validate token + set new password
+  // ============================================================
+  async resetPassword(dto: ResetPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { passwordResetToken: dto.token },
+    });
+
+    if (!user || !user.passwordResetExpiresAt) {
+      throw new BadRequestException('Reset token is invalid or has already been used.');
+    }
+
+    if (new Date() > user.passwordResetExpiresAt) {
+      // Clear the expired token
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordResetToken: null, passwordResetExpiresAt: null },
+      });
+      throw new BadRequestException(
+        'Reset token has expired. Please initiate a new password reset request.',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        refreshTokenHash: null, // Invalidate all active sessions
+      },
+    });
+
+    return { message: 'Password has been reset successfully. You can now log in.' };
   }
 
   // ============================================================

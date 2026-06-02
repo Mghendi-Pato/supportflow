@@ -16,8 +16,8 @@ import { StatusBadge, PriorityBadge, PaidBadge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
-import { Textarea } from '@/components/ui/Textarea';
 import { Input } from '@/components/ui/Input';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { AttachmentStager, type StagedFile } from '@/components/ui/AttachmentStager';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotify, errMsg } from '@/hooks/useNotify';
@@ -273,8 +273,8 @@ export default function TicketsPage() {
               <ToggleButton value="custom">Custom range</ToggleButton>
             </ToggleButtonGroup>
             {dateRangeDisabled && (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
-                Date range ignored — all {status === 'ACTIVE' ? 'active' : 'open'} tickets are always shown
+              <span className="text-xs text-amber-600">
+                Showing all {status === 'ACTIVE' ? 'active' : 'open'} tickets — date filter doesn't apply here
               </span>
             )}
           </div>
@@ -448,13 +448,14 @@ export default function TicketsPage() {
               onBlur={() => setTitleTouched(true)}
               error={titleError}
             />
-            <Textarea
-              label="Description"
-              placeholder="Provide details about the issue…"
-              rows={4}
-              value={form.description}
-              onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-            />
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
+              <RichTextEditor
+                value={form.description}
+                onChange={(html) => setForm(f => ({ ...f, description: html }))}
+                placeholder="Provide details about the issue…"
+              />
+            </div>
             <Select
               label="Priority"
               options={[

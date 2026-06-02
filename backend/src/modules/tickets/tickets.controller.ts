@@ -79,10 +79,11 @@ export class TicketsController {
 
   /**
    * PATCH /tickets/:id
-   * Update title, description, or priority. Admin and agent only.
+   * Update title, description, or priority.
+   * Clients may update their own ticket while status is OPEN (enforced in service).
    */
   @Patch(':id')
-  @Roles('WORKSPACE_ADMIN', 'AGENT')
+  @Roles('WORKSPACE_ADMIN', 'AGENT', 'CLIENT')
   @ApiOperation({ summary: 'Update ticket title, description, or priority' })
   update(
     @CurrentUser() user: JwtPayload,

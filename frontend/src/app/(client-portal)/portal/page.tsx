@@ -9,7 +9,7 @@ import {
   startOfWeek,
   startOfMonth,
 } from 'date-fns';
-import { Ticket, Plus } from 'lucide-react';
+import { Ticket, Plus, Bell } from 'lucide-react';
 
 // MUI — already installed (@mui/material)
 import {
@@ -56,6 +56,21 @@ function toISO(d: Date) {
   return d.toISOString();
 }
 
+/** Strip HTML tags for safe plain-text preview snippets. */
+function stripHtml(html: string): string {
+  if (!html) return '';
+  // Replace block-level tags with a space so words don't run together
+  return html
+    .replace(/<\/(p|li|h[1-6]|blockquote|div)>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function getPresetRange(preset: DatePreset): { from?: string; to?: string } {
   const now = new Date();
   switch (preset) {
@@ -88,6 +103,25 @@ export default function PortalPage() {
   const [customTo, setCustomTo] = useState('');
 
   // ── Queries ──────────────────────────────────────────────────────────────
+
+  // Unread notifications → build a Set of ticketIds that have activity
+  const { data: notifData } = useQuery(
+    'portal-unread-notifications',
+    async () => {
+      const res = await api.get('/notifications?limit=100');
+      return res.data.data?.data as Array<{ ticketId: string | null; isRead: boolean }>;
+    },
+    { staleTime: 30_000 },
+  );
+
+  const unreadTicketIds = useMemo<Set<string>>(() => {
+    if (!notifData) return new Set();
+    return new Set(
+      notifData
+        .filter((n) => !n.isRead && n.ticketId)
+        .map((n) => n.ticketId as string),
+    );
+  }, [notifData]);
 
   // Unfiltered query — used for the stats row (accurate per-status totals)
   const { data: allData } = useQuery(
@@ -249,8 +283,8 @@ export default function PortalPage() {
           <ToggleButton value="custom">Custom</ToggleButton>
         </ToggleButtonGroup>
         {DATE_AGNOSTIC.has(status) && (
-          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
-            All active tickets shown regardless of date
+          <span className="text-xs text-amber-600">
+            Showing all tickets — date filter doesn't apply here
           </span>
         )}
       </div>
@@ -356,37 +390,55 @@ export default function PortalPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {data.data.map((ticket) => (
-            <Link key={ticket.id} href={`/portal/tickets/${ticket.id}`}>
-              <Card className="hover:border-primary-200 hover:shadow-md transition-all cursor-pointer">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono text-gray-400">
-                        {ticket.ticketNumber}
-                      </span>
-                      <PriorityBadge priority={ticket.priority} />
-                      <PaidBadge isPaid={ticket.isPaid} />
-                    </div>
-                    <h3 className="font-semibold text-gray-900 truncate">
-                      {ticket.title}
-                    </h3>
-                    {ticket.description && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                        {ticket.description}
+          {data.data.map((ticket) => {
+            const hasUnread = unreadTicketIds.has(ticket.id);
+            return (
+              <Link key={ticket.id} href={`/portal/tickets/${ticket.id}`}>
+                <Card className={`hover:border-primary-200 hover:shadow-md transition-all cursor-pointer ${hasUnread ? 'border-amber-300 bg-amber-50/40' : ''}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-mono text-gray-400">
+                          {ticket.ticketNumber}
+                        </span>
+                        <PriorityBadge priority={ticket.priority} showTooltip />
+                        <PaidBadge isPaid={ticket.isPaid} showTooltip />
+                        {/* Unread activity flag */}
+                        {hasUnread && (
+                          <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            New activity
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {ticket.title}
+                      </h3>
+                      {ticket.description && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                          {stripHtml(ticket.description)}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-2">
+                        {formatDistanceToNow(new Date(ticket.createdAt), {
+                          addSuffix: true,
+                        })}
                       </p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-2">
-                      {formatDistanceToNow(new Date(ticket.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <StatusBadge status={ticket.status} showTooltip />
+                      {hasUnread && (
+                        <span className="flex items-center gap-1 text-xs text-amber-600">
+                          <Bell size={12} className="shrink-0" />
+                          <span className="text-[11px]">Unread updates</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <StatusBadge status={ticket.status} />
-                </div>
-              </Card>
-            </Link>
-          ))}
+                </Card>
+              </Link>
+            );
+          })}
 
           {/* Pagination */}
           {data.total > 15 && (

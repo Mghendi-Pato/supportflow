@@ -3,12 +3,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Ticket, Users, BarChart3, Settings,
-  HeadphonesIcon, ShieldCheck, X,
+  HeadphonesIcon, ShieldCheck, X, Zap, Crown, Gift, ArrowUpRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '@/hooks/useAuth';
 import { useSuperAdminTenant } from '@/contexts/SuperAdminTenantContext';
 import { useSidebar } from '@/contexts/SidebarContext';
+
+const PLAN_CONFIG = {
+  FREE:     { label: 'Free',     icon: Gift,  badgeClass: 'bg-gray-100 text-gray-600',          showUpgrade: true  },
+  STANDARD: { label: 'Standard', icon: Zap,   badgeClass: 'bg-primary-100 text-primary-700',    showUpgrade: true  },
+  PREMIUM:  { label: 'Premium',  icon: Crown, badgeClass: 'bg-amber-100 text-amber-700',         showUpgrade: false },
+} as const;
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,6 +34,8 @@ export function DashboardSidebar() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const workspaceName = isSuperAdmin ? selectedWorkspace?.name : user?.tenant?.name;
+  const plan          = (user?.tenant as any)?.plan as keyof typeof PLAN_CONFIG | undefined;
+  const planConfig    = plan ? PLAN_CONFIG[plan] : null;
 
   return (
     <aside
@@ -102,6 +110,29 @@ export function DashboardSidebar() {
             );
           })}
       </nav>
+
+      {/* Plan badge + upgrade CTA */}
+      {planConfig && isAdmin && !isSuperAdmin && (
+        <div className="px-4 pb-5 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-2 mb-2.5">
+            {(() => { const PlanIcon = planConfig.icon; return <PlanIcon size={14} className="text-gray-500" />; })()}
+            <span className="text-xs text-gray-500">Current plan</span>
+            <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${planConfig.badgeClass}`}>
+              {planConfig.label}
+            </span>
+          </div>
+          {planConfig.showUpgrade && (
+            <Link
+              href="/settings/upgrade"
+              onClick={close}
+              className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition-colors"
+            >
+              <ArrowUpRight size={13} />
+              Upgrade plan
+            </Link>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

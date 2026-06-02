@@ -1,5 +1,6 @@
 'use client';
-import { AlertTriangle, Info, LogOut, Trash2, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, Info, Trash2, X } from 'lucide-react';
 import { Button } from './Button';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'default';
@@ -57,13 +58,11 @@ export function ConfirmDialog({
 
   const { iconBg, iconColor, Icon, confirmBg } = VARIANT_STYLES[variant];
 
-  return (
-    /* Backdrop */
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget && !isLoading) onCancel(); }}
     >
-      {/* Panel */}
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-auto p-6 flex flex-col gap-4">
         {/* Close button */}
         <button
@@ -105,6 +104,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

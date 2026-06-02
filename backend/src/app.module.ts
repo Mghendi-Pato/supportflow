@@ -14,6 +14,9 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 
 @Module({
   imports: [
@@ -77,6 +80,9 @@ import { ChatModule } from './modules/chat/chat.module';
     AnalyticsModule,
     BillingModule,
     ChatModule,
+    WebhooksModule,
+    PaymentsModule,
+    ApiKeysModule,
   ],
 })
 export class AppModule {}

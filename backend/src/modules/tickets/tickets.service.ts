@@ -290,6 +290,11 @@ export class TicketsService {
   async update(tenantId: string, currentUser: JwtPayload, ticketId: string, dto: UpdateTicketDto) {
     const ticket = await this.assertTicketAccess(tenantId, currentUser, ticketId);
 
+    // Clients may only edit their own ticket while it is still OPEN
+    if (currentUser.role === 'CLIENT' && ticket.status !== 'OPEN') {
+      throw new ForbiddenException('You can only edit a ticket while it is open');
+    }
+
     const prevPriority = ticket.priority;
 
     const updated = await this.prisma.ticket.update({

@@ -66,7 +66,7 @@ async function main() {
     create: {
       name: 'NubianNetworks',
       slug: 'nubian-networks',
-      plan: 'PRO',
+      plan: 'STANDARD',
       ownerId: workspaceAdmin.id,
     },
   });

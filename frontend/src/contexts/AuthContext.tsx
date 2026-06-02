@@ -13,7 +13,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => void;
   refreshUser: () => Promise<void>;
 }
 
@@ -52,17 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });
-    const { accessToken, refreshToken } = res.data.data;
+    const { accessToken, refreshToken, user, tenant } = res.data.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
-    const meRes = await api.get('/auth/me');
-    setUser(flattenMeResponse(meRes.data.data));
+    // Decode role from JWT payload — avoids a second /auth/me round-trip
+    const { role } = JSON.parse(atob(accessToken.split('.')[1]));
+    setUser({ ...user, role, tenant });
   };
 
-  const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch {/* ignore */}
+  const logout = () => {
+    // Fire-and-forget — no reason to block the UI waiting for server confirmation
+    api.post('/auth/logout').catch(() => {});
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     setUser(null);

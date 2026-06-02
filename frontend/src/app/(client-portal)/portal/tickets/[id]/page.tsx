@@ -1,18 +1,20 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
   ArrowLeft, User, DollarSign,
-  Check, ThumbsDown, CheckCircle2, Download,
+  Check, ThumbsDown, CheckCircle2, Download, Pencil, X,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
+import { RichTextContent } from '@/components/ui/RichTextContent';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { Modal } from '@/components/ui/Modal';
 import { AttachmentPreview, downloadAllAsZip } from '@/components/ui/AttachmentPreview';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -55,7 +57,11 @@ export default function PortalTicketDetailPage() {
   // Decline modal
   const [declineTarget, setDeclineTarget] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
-  const [acceptTarget, setAcceptTarget]   = useState<{ id: string; amount: string; currency: string } | null>(null);
+  const [acceptTarget, setAcceptTarget] = useState<{ id: string; amount: string; currency: string } | null>(null);
+
+  // Inline edit
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: '', description: '' });
 
   const { data: ticket, isLoading } = useQuery<Ticket>(
     ['portal-ticket', id],
@@ -68,15 +74,83 @@ export default function PortalTicketDetailPage() {
     { enabled: !!id }
   );
 
+  // Mark non-payment unread notifications for this ticket as read on open.
+  // BILLING_REQUEST notifications are intentionally excluded — they must only
+  // be cleared once the client explicitly accepts or declines the request.
+  const PAYMENT_TYPES = new Set(['BILLING_REQUEST']);
+
+  useEffect(() => {
+    if (!ticket) return;
+    api.get('/notifications?limit=100').then((res) => {
+      const unread: Array<{ id: string; ticketId: string | null; isRead: boolean; type: string }> =
+        res.data?.data?.data ?? [];
+      const ids = unread
+        .filter((n) => !n.isRead && n.ticketId === id && !PAYMENT_TYPES.has(n.type))
+        .map((n) => n.id);
+      if (ids.length > 0) {
+        api.patch('/notifications/read', { notificationIds: ids })
+          .then(() => qc.invalidateQueries('portal-unread-notifications'))
+          .catch(() => undefined);
+      }
+    }).catch(() => undefined);
+  }, [ticket?.id]); // eslint-disable-line
+
+  const saveEdit = useMutation(
+    async () => {
+      await api.patch(`/tickets/${id}`, {
+        title: editForm.title.trim() || ticket?.title,
+        description: editForm.description,
+      });
+    },
+    {
+      onSuccess: () => {
+        qc.invalidateQueries(['portal-ticket', id]);
+        setEditing(false);
+        notify.success('Ticket updated');
+      },
+      onError: (err: unknown) => notify.error(errMsg(err, 'Failed to save changes')),
+    }
+  );
+
+  const startEdit = () => {
+    setEditForm({ title: ticket!.title, description: ticket!.description });
+    setEditing(true);
+  };
+
+  const cancelEdit = () => setEditing(false);
+
   const respondBilling = useMutation(
     async ({ requestId, accept, reason }: { requestId: string; accept: boolean; reason?: string }) => {
       await api.patch(`/billing-requests/${requestId}/respond`, { accept, declineReason: reason });
-      return accept; // bubble up so onSuccess can show the right message
+      return accept;
     },
     {
       onSuccess: (accepted) => {
         qc.invalidateQueries(['billing', id]);
         qc.invalidateQueries(['portal-ticket', id]);
+        // Now that the client has responded, mark BILLING_REQUEST notifications
+        // for this ticket as read and clear the flag on the list page.
+        api.get('/notifications?limit=100').then((res) => {
+          const all: Array<{ id: string; ticketId: string | null; isRead: boolean; type: string }> =
+            res.data?.data?.data ?? [];
+          const ids = all
+            .filter((n) => !n.isRead && n.ticketId === id && n.type === 'BILLING_REQUEST')
+            .map((n) => n.id);
+          const refresh = () => {
+            qc.invalidateQueries('portal-unread-notifications');
+            qc.invalidateQueries('notifications'); // refreshes the bell badge immediately
+          };
+          if (ids.length > 0) {
+            api.patch('/notifications/read', { notificationIds: ids })
+              .then(refresh)
+              .catch(refresh);
+          } else {
+            refresh();
+          }
+        }).catch(() => {
+          qc.invalidateQueries('portal-unread-notifications');
+          qc.invalidateQueries('notifications');
+        });
         setDeclineTarget(null);
         setDeclineReason('');
         setAcceptTarget(null);
@@ -89,9 +163,11 @@ export default function PortalTicketDetailPage() {
   if (isLoading) return <div className="flex justify-center py-24"><Spinner size="lg" /></div>;
   if (!ticket) return null;
 
+  const canEdit = ticket.status === 'OPEN';
+
   return (
     <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
-      {/* Back */}
+      {/* Back + title */}
       <div className="flex items-center gap-3">
         <Link href="/portal" className="text-gray-400 hover:text-gray-600 transition-colors">
           <ArrowLeft size={20} />
@@ -104,8 +180,8 @@ export default function PortalTicketDetailPage() {
 
       {/* Status row */}
       <div className="flex flex-wrap items-center gap-3">
-        <StatusBadge status={ticket.status} />
-        <PriorityBadge priority={ticket.priority} />
+        <StatusBadge status={ticket.status} showTooltip />
+        <PriorityBadge priority={ticket.priority} showTooltip />
         <span className="text-sm text-gray-400">
           Opened {formatDistanceToNow(new Date(ticket.createdAt), { addSuffix: true })}
         </span>
@@ -117,10 +193,58 @@ export default function PortalTicketDetailPage() {
         )}
       </div>
 
-      {/* Description */}
+      {/* Description — editable when OPEN */}
       <Card>
-        <h2 className="text-sm font-semibold text-gray-500 mb-3">Issue Description</h2>
-        <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-500">Issue Description</h2>
+          {canEdit && !editing && (
+            <button
+              onClick={startEdit}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-primary-600 transition-colors"
+            >
+              <Pencil size={12} /> Edit
+            </button>
+          )}
+          {editing && (
+            <button
+              onClick={cancelEdit}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-red-500 transition-colors"
+            >
+              <X size={12} /> Cancel
+            </button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="space-y-3">
+            {/* Title */}
+            <input
+              value={editForm.title}
+              onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full text-base font-semibold text-gray-900 border-b border-gray-200 focus:border-primary-500 outline-none pb-1 bg-transparent"
+              placeholder="Ticket title"
+            />
+            {/* Description */}
+            <RichTextEditor
+              value={editForm.description}
+              onChange={html => setEditForm(f => ({ ...f, description: html }))}
+              placeholder="Describe your issue…"
+            />
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={cancelEdit}
+                className="px-4 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <Button size="sm" isLoading={saveEdit.isLoading} onClick={() => saveEdit.mutate()}>
+                Save changes
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <RichTextContent html={ticket.description} />
+        )}
       </Card>
 
       {/* Payment requests */}
@@ -185,7 +309,7 @@ export default function PortalTicketDetailPage() {
         </Card>
       )}
 
-      {/* ── Real-time chat panel ── */}
+      {/* Real-time chat panel */}
       <Card padding={false}>
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-800">Conversation</h2>

@@ -17,10 +17,15 @@ interface SelectProps {
   id?: string;
   className?: string;
   name?: string;
+  /** Pass true when the Select is inside a createPortal modal to prevent the
+   *  dropdown from teleporting to document.body at z-index 1300 (which renders
+   *  it behind the modal backdrop). With disablePortal the popover renders as a
+   *  child of the Select's DOM node, inheriting the modal's stacking context. */
+  disablePortal?: boolean;
 }
 
 export const Select = forwardRef<HTMLDivElement, SelectProps>(
-  ({ label, error, options, placeholder, value, onChange, disabled, id, className, name }, ref) => {
+  ({ label, error, options, placeholder, value, onChange, disabled, id, className, name, disablePortal }, ref) => {
     const labelId = id ? `${id}-label` : label ? `${label.toLowerCase().replace(/\s+/g, '-')}-label` : undefined;
 
     const handleChange = (e: SelectChangeEvent<string>) => {
@@ -62,6 +67,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
           onChange={handleChange}
           displayEmpty
           MenuProps={{
+            disablePortal,
             slotProps: {
               paper: {
                 sx: {
