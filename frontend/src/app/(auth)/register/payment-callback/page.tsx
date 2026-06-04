@@ -1,12 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HeadphonesIcon, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Spinner } from '@/components/ui/Spinner';
 import api from '@/lib/api';
 import Link from 'next/link';
 
-export default function PaymentCallbackPage() {
+// Inner component — useSearchParams() requires a Suspense boundary in Next.js 14
+function PaymentCallback() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [state, setState] = useState<'verifying' | 'success' | 'failed'>('verifying');
@@ -14,7 +15,7 @@ export default function PaymentCallbackPage() {
 
   useEffect(() => {
     const transactionId = searchParams.get('transaction_id');
-    const status = searchParams.get('status');
+    const status        = searchParams.get('status');
 
     if (status === 'cancelled' || !transactionId) {
       setState('failed');
@@ -23,9 +24,10 @@ export default function PaymentCallbackPage() {
 
     api.get(`/payments/verify/${transactionId}`)
       .then((res) => {
-        setPlanName(res.data.tenant?.plan ?? '');
+        // ResponseInterceptor wraps all responses: { success, data, timestamp }
+        // verifyAndUpgrade returns { success, tenant } → wrapped as res.data.data
+        setPlanName(res.data.data?.tenant?.plan ?? '');
         setState('success');
-        // Redirect to dashboard after 2 s
         setTimeout(() => router.replace('/'), 2000);
       })
       .catch(() => setState('failed'));
@@ -53,10 +55,10 @@ export default function PaymentCallbackPage() {
             <CheckCircle2 size={28} className="text-green-600" />
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Payment successful!</h1>
-          <p className="text-sm text-gray-500 mb-1">
-            Your workspace has been upgraded to
+          <p className="text-sm text-gray-500 mb-1">Your workspace has been upgraded to</p>
+          <p className="text-base font-bold text-primary-600 mb-4 capitalize">
+            {planName.toLowerCase()}
           </p>
-          <p className="text-base font-bold text-primary-600 mb-4">{planName}</p>
           <p className="text-xs text-gray-400">Redirecting you to your dashboard…</p>
         </div>
       )}
@@ -68,7 +70,8 @@ export default function PaymentCallbackPage() {
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Payment not confirmed</h1>
           <p className="text-sm text-gray-500 mb-6">
-            We couldn't confirm your payment. Your workspace has been created on the Free plan. If you were charged, please contact support.
+            We couldn't confirm your payment. Your workspace has been created on the Free plan.
+            If you were charged, please contact support.
           </p>
           <Link
             href="/"
@@ -79,5 +82,23 @@ export default function PaymentCallbackPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-h-screen flex flex-col items-center justify-center gap-4"
+          style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 50%, #c7d2fe 100%)' }}
+        >
+          <Spinner size="sm" />
+          <p className="text-sm text-gray-500">Loading…</p>
+        </div>
+      }
+    >
+      <PaymentCallback />
+    </Suspense>
   );
 }
